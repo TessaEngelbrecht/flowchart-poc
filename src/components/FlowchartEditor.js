@@ -513,7 +513,6 @@ const FlowchartEditor = ({ problemId, userId, onSessionChange }) => {
             <div className="flowchart-sidebar">
                 <div className="sidebar-header">
                     <h3 className="sidebar-title">Flowchart Elements</h3>
-                    <p className="sidebar-subtitle">Drag and drop to create</p>
                 </div>
 
                 <div className="elements-container">
@@ -621,11 +620,10 @@ const FlowchartEditor = ({ problemId, userId, onSessionChange }) => {
                         <div className="instruction-list">
                             <div className="instruction-item">• Click elements to add them to canvas</div>
                             <div className="instruction-item">• Drag elements to move them</div>
-                            <div className="instruction-item">• Hover over connection points to connect</div>
+                            <div className="instruction-item">• Hover over the middle of an element, hold and drag to create connection pints</div>
                             <div className="instruction-item">• Click and drag between elements for arrows</div>
                             <div className="instruction-item">• Double-click to edit labels</div>
                             <div className="instruction-item">• Use Text Label for arrow conditions (Yes/No)</div>
-                            <div className="instruction-item">• Drag to trash can to delete</div>
                         </div>
                     </div>
                 </div>
