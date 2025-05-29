@@ -114,8 +114,7 @@ const Analytics = ({ sessionId }) => {
     if (!analytics) {
         return (
             <div className="bg-white rounded-lg shadow p-4">
-                <h3 className="text-lg font-semibold mb-2">Session Analytics</h3>
-                <p className="text-gray-500 text-sm">No data available yet. Start creating your flowchart!</p>
+
             </div>
         );
     }
@@ -123,35 +122,7 @@ const Analytics = ({ sessionId }) => {
     return (
         <div className="bg-white rounded-lg shadow">
             <div className="p-4">
-                <h3 className="text-lg font-semibold mb-4">Real-time Analytics (Updates every 3s)</h3>
-
-                {/* Metrics Row */}
-                <div className="grid grid-cols-6 gap-4 mb-4">
-                    <div className="text-center bg-blue-50 p-3 rounded">
-                        <div className="text-xl font-bold text-blue-600">{analytics.totalTime}s</div>
-                        <div className="text-xs text-gray-600">Total Time</div>
-                    </div>
-                    <div className="text-center bg-green-50 p-3 rounded">
-                        <div className="text-xl font-bold text-green-600">{analytics.totalActions}</div>
-                        <div className="text-xs text-gray-600">Actions</div>
-                    </div>
-                    <div className="text-center bg-yellow-50 p-3 rounded">
-                        <div className="text-xl font-bold text-yellow-600">{analytics.revisionCount}</div>
-                        <div className="text-xs text-gray-600">Revisions</div>
-                    </div>
-                    <div className="text-center bg-purple-50 p-3 rounded">
-                        <div className="text-xl font-bold text-purple-600">{analytics.efficiency}%</div>
-                        <div className="text-xs text-gray-600">Efficiency</div>
-                    </div>
-                    <div className="text-center bg-indigo-50 p-3 rounded">
-                        <div className="text-xl font-bold text-indigo-600">{analytics.planningTime}s</div>
-                        <div className="text-xs text-gray-600">Planning</div>
-                    </div>
-                    <div className="text-center bg-gray-50 p-3 rounded">
-                        <div className="text-xl font-bold text-gray-600">{actions.length}</div>
-                        <div className="text-xs text-gray-600">Events</div>
-                    </div>
-                </div>
+                
 
                 <div className="flex gap-4">
                     {/* Action Breakdown */}

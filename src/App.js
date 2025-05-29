@@ -8,9 +8,7 @@ function App() {
   const [showAnalytics, setShowAnalytics] = useState(true);
 
   const startNewSession = useCallback(() => {
-    // Clear the current session to force a new one
     setCurrentSession(null);
-    // Force re-render which will create new session
     setTimeout(() => {
       window.location.reload();
     }, 100);
@@ -21,33 +19,36 @@ function App() {
   }, []);
 
   return (
-    <div className="App h-screen flex flex-col">
-      {/* Header */}
-      <header className="bg-blue-600 text-white p-3 shadow-md">
-        <div className="flex justify-between items-center">
-          <h1 className="text-xl font-bold">Algorithmic Thinking Assessment</h1>
-          
+    <div className="app-container">
+      {/* Enhanced Header */}
+      <header className="app-header">
+        <div className="header-content">
+          <div className="header-left">
+            <h1 className="app-title">Algorithmic Thinking Assessment</h1>
+          </div>
+          <div className="header-controls">
+            <button
+              onClick={startNewSession}
+              className="btn btn-secondary"
+              title="Start New Session"
+            >
+              New Session
+            </button>
+          </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      {/* Main Content Area */}
+      <main className="main-content">
         {/* Flowchart Editor */}
-        <div className="flex-1">
+        <div className="editor-container">
           <FlowchartEditor
             problemId="sample_problem_1"
             userId="student_123"
             onSessionChange={handleSessionChange}
           />
         </div>
-
-        {/* Analytics at Bottom */}
-        {showAnalytics && currentSession && (
-          <div className="h-64 border-t bg-gray-50 p-4 overflow-y-auto">
-            <Analytics sessionId={currentSession} />
-          </div>
-        )}
-      </div>
+      </main>
     </div>
   );
 }

@@ -81,7 +81,7 @@ ConnectorShape.prototype.paintVertexShape = function (c, x, y, w, h) {
     c.fillAndStroke();
 };
 
-const FlowchartEditor = ({ problemId, userId }) => {
+const FlowchartEditor = ({ problemId, userId, onSessionChange }) => {
     const graphContainer = useRef(null);
     const trashCanRef = useRef(null);
     const [graph, setGraph] = useState(null);
@@ -106,13 +106,16 @@ const FlowchartEditor = ({ problemId, userId }) => {
             if (data) {
                 setSessionId(data.id);
                 sessionInitialized.current = true;
+                if (onSessionChange) {
+                    onSessionChange(data.id);
+                }
                 toast.success('Session started successfully!');
             }
         } catch (error) {
             toast.error('Failed to start session');
             console.error('Session error:', error);
         }
-    }, [userId, problemId, sessionId]);
+    }, [userId, problemId, sessionId, onSessionChange]);
 
     const trackAction = useCallback(async (actionType, elementId, elementType, position, details = {}) => {
         if (!sessionId) return;
@@ -150,39 +153,34 @@ const FlowchartEditor = ({ problemId, userId }) => {
         if (style.includes('input') || style.includes('output')) return 'input_output';
         if (style.includes('document')) return 'document';
         if (style.includes('connector')) return 'connector';
-        if (style.includes('text')) return 'text_label'; // **ADDED: Text element type**
+        if (style.includes('text')) return 'text_label';
         return 'process';
     }, []);
 
     const setupConnectionConstraints = useCallback((graph) => {
-        // **FIXED: Proper connection constraints setup**
         graph.getAllConnectionConstraints = function (terminal) {
             if (terminal != null && terminal.cell != null && this.model.isVertex(terminal.cell)) {
-                // Create connection constraints with proper mxPoint and mxConnectionConstraint objects
                 return [
-                    new mxConnectionConstraint(new mxPoint(0.5, 0), true),    // North
-                    new mxConnectionConstraint(new mxPoint(1, 0.25), true),   // Northeast
-                    new mxConnectionConstraint(new mxPoint(1, 0.5), true),    // East
-                    new mxConnectionConstraint(new mxPoint(1, 0.75), true),   // Southeast
-                    new mxConnectionConstraint(new mxPoint(0.5, 1), true),    // South
-                    new mxConnectionConstraint(new mxPoint(0, 0.75), true),   // Southwest
-                    new mxConnectionConstraint(new mxPoint(0, 0.5), true),    // West
-                    new mxConnectionConstraint(new mxPoint(0, 0.25), true)    // Northwest
+                    new mxConnectionConstraint(new mxPoint(0.5, 0), true),
+                    new mxConnectionConstraint(new mxPoint(1, 0.25), true),
+                    new mxConnectionConstraint(new mxPoint(1, 0.5), true),
+                    new mxConnectionConstraint(new mxPoint(1, 0.75), true),
+                    new mxConnectionConstraint(new mxPoint(0.5, 1), true),
+                    new mxConnectionConstraint(new mxPoint(0, 0.75), true),
+                    new mxConnectionConstraint(new mxPoint(0, 0.5), true),
+                    new mxConnectionConstraint(new mxPoint(0, 0.25), true)
                 ];
             }
             return null;
         };
 
-        // Enable connections and constraint handling
         graph.setConnectable(true);
         graph.setAllowDanglingEdges(false);
 
-        // **FIXED: Ensure constraint handler is properly enabled**
         if (graph.connectionHandler && graph.connectionHandler.constraintHandler) {
             graph.connectionHandler.constraintHandler.enabled = true;
         }
 
-        // **FIXED: Override constraint handler intersection for better snapping**
         if (typeof mxgraph().mxConstraintHandler !== 'undefined') {
             const mxConstraintHandler = mxgraph().mxConstraintHandler;
             mxConstraintHandler.prototype.intersects = function (icon, point, source, existingEdge) {
@@ -198,33 +196,6 @@ const FlowchartEditor = ({ problemId, userId }) => {
         mxCellRenderer.registerShape('connector', ConnectorShape);
     }, []);
 
-    const setupTrashCan = useCallback((graph) => {
-        if (!trashCanRef.current) return;
-
-        trashCanRef.current.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            trashCanRef.current.style.backgroundColor = '#ff6b6b';
-            trashCanRef.current.style.transform = 'scale(1.1)';
-        });
-
-        trashCanRef.current.addEventListener('dragleave', (e) => {
-            e.preventDefault();
-            trashCanRef.current.style.backgroundColor = '#dc3545';
-            trashCanRef.current.style.transform = 'scale(1)';
-        });
-
-        trashCanRef.current.addEventListener('drop', (e) => {
-            e.preventDefault();
-            trashCanRef.current.style.backgroundColor = '#dc3545';
-            trashCanRef.current.style.transform = 'scale(1)';
-
-            if (draggedElement) {
-                graph.removeCells([draggedElement]);
-                setDraggedElement(null);
-                toast.success('Element deleted successfully!');
-            }
-        });
-    }, [draggedElement]);
 
     const initializeGraph = useCallback(() => {
         if (!graphContainer.current || graph) return;
@@ -235,9 +206,14 @@ const FlowchartEditor = ({ problemId, userId }) => {
         }
 
         try {
+            //registerCustomShapes();
+
             const newGraph = new mxGraph(graphContainer.current);
 
-            // **KEEP ARROW STYLING EXACTLY AS SPECIFIED**
+           // setupConnectionConstraints(newGraph);
+            //setupTrashCan(newGraph);
+
+            // Styling arrows AFTER registering custom shapes
             const style = newGraph.getStylesheet().getDefaultEdgeStyle();
             style[mxConstants.STYLE_STROKECOLOR] = '#000000'; // Black arrows
             style[mxConstants.STYLE_STROKEWIDTH] = 2; // Thicker lines
@@ -250,15 +226,14 @@ const FlowchartEditor = ({ problemId, userId }) => {
             newGraph.setAllowDanglingEdges(false);
             new mxRubberband(newGraph);
 
-            // Enable keyboard shortcuts for deletion
             const keyHandler = new mxKeyHandler(newGraph);
-            keyHandler.bindKey(46, function (evt) { // Delete key
+            keyHandler.bindKey(46, function (evt) {
                 if (newGraph.isEnabled()) {
                     newGraph.removeCells();
                     toast.info('Selected elements deleted');
                 }
             });
-            keyHandler.bindKey(8, function (evt) { // Backspace key for Mac
+            keyHandler.bindKey(8, function (evt) {
                 if (newGraph.isEnabled()) {
                     newGraph.removeCells();
                     toast.info('Selected elements deleted');
@@ -373,7 +348,7 @@ const FlowchartEditor = ({ problemId, userId }) => {
             console.error('Error initializing graph:', error);
             toast.error('Failed to initialize flowchart editor');
         }
-    }, [trackAction, getElementType, graph, registerCustomShapes, setupConnectionConstraints, setupTrashCan]);
+    }, [trackAction, getElementType, graph, registerCustomShapes, setupConnectionConstraints]);
 
     useEffect(() => {
         if (!sessionInitialized.current) {
@@ -451,7 +426,6 @@ const FlowchartEditor = ({ problemId, userId }) => {
                 height = 60;
                 label = 'Predefined';
                 break;
-            // **ADDED: Text element for arrow labeling**
             case 'text':
                 style = 'text;html=1;align=center;verticalAlign=middle;resizable=1;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=12;fontColor=#000000;';
                 width = 40;
@@ -533,223 +507,177 @@ const FlowchartEditor = ({ problemId, userId }) => {
         }
     }, [graph]);
 
-    const [currentSession, setCurrentSession] = useState(null);
-    const [showAnalytics, setShowAnalytics] = useState(true);
-
-    const startNewSession = useCallback(() => {
-        // Clear the current session to force a new one
-        setCurrentSession(null);
-        // Force re-render which will create new session
-        setTimeout(() => {
-            window.location.reload();
-        }, 100);
-    }, []);
-
-    const handleSessionChange = useCallback((sessionId) => {
-        setCurrentSession(sessionId);
-    }, []);
-
     return (
-        <div className="flex h-screen bg-gray-50 full-container-things">
-            {/* Info and Elements Column */}
-            <div className='full-container-things'>
-                <div className="w-80 bg-white border-r border-gray-300 p-4 shadow-sm overflow-y-auto left-column">
-                    <div className="flex gap-2">
-                                <button
-                                  onClick={startNewSession}
-                                  className="px-3 py-1 bg-blue-500 rounded text-sm hover:bg-blue-400 transition-colors"
-                                >
-                                  🔄 New Session
-                                </button>
-                                <button
-                                  onClick={() => setShowAnalytics(!showAnalytics)}
-                                  className="px-3 py-1 bg-green-500 rounded text-sm hover:bg-green-400 transition-colors"
-                                >
-                                  {showAnalytics ? 'Hide' : 'Show'} Analytics
-                                </button>
-                              </div>
-                    <h3 className="text-lg font-semibold mb-4 text-gray-800">Flowchart Elements</h3>
+        <div className="flowchart-editor-container">
+            {/* Sidebar */}
+            <div className="flowchart-sidebar">
+                <div className="sidebar-header">
+                    <h3 className="sidebar-title">Flowchart Elements</h3>
+                    <p className="sidebar-subtitle">Drag and drop to create</p>
+                </div>
 
-                    <div className="space-y-4">
-                        {/* Terminal Elements */}
-                        <div className="bg-gray-100 p-3 rounded">
-                            <h4 className="text-sm font-medium text-gray-600 mb-3">Terminal Elements</h4>
-                            <div className="grid grid-cols-2 gap-2">
-                                <button
-                                    onClick={() => addFlowchartElement('start')}
-                                    className="p-3 bg-green-100 border border-green-300 rounded-full text-sm hover:bg-green-200 transition-colors flex items-center justify-center"
-                                >
-                                    🟢 Start
-                                </button>
-                                <button
-                                    onClick={() => addFlowchartElement('end')}
-                                    className="p-3 bg-red-100 border border-red-300 rounded-full text-sm hover:bg-red-200 transition-colors flex items-center justify-center"
-                                >
-                                    🔴 End
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Process Elements */}
-                        <div className="bg-gray-100 p-3 rounded">
-                            <h4 className="text-sm font-medium text-gray-600 mb-3">Process Elements</h4>
-                            <div className="space-y-2">
-                                <button
-                                    onClick={() => addFlowchartElement('process')}
-                                    className="w-full p-3 bg-blue-100 border border-blue-300 text-sm hover:bg-blue-200 transition-colors"
-                                >
-                                    📦 Process
-                                </button>
-                                <button
-                                    onClick={() => addFlowchartElement('decision')}
-                                    className="w-full p-3 bg-yellow-100 border border-yellow-300 text-sm hover:bg-yellow-200 transition-colors"
-                                >
-                                    💎 Decision
-                                </button>
-                                <button
-                                    onClick={() => addFlowchartElement('predefined')}
-                                    className="w-full p-3 bg-orange-100 border border-orange-300 rounded text-sm hover:bg-orange-200 transition-colors"
-                                >
-                                    📋 Predefined
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Input/Output Elements */}
-                        <div className="bg-gray-100 p-3 rounded">
-                            <h4 className="text-sm font-medium text-gray-600 mb-3">Input/Output</h4>
-                            <div className="grid grid-cols-2 gap-2">
-                                <button
-                                    onClick={() => addFlowchartElement('input')}
-                                    className="p-3 bg-purple-100 border border-purple-300 text-sm hover:bg-purple-200 transition-colors"
-                                >
-                                    📥 Input
-                                </button>
-                                <button
-                                    onClick={() => addFlowchartElement('output')}
-                                    className="p-3 bg-purple-100 border border-purple-300 text-sm hover:bg-purple-200 transition-colors"
-                                >
-                                    📤 Output
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Special Elements */}
-                        <div className="bg-gray-100 p-3 rounded">
-                            <h4 className="text-sm font-medium text-gray-600 mb-3">Special Elements</h4>
-                            <div className="grid grid-cols-2 gap-2">
-                                <button
-                                    onClick={() => addFlowchartElement('document')}
-                                    className="p-3 bg-gray-200 border border-gray-400 text-sm hover:bg-gray-300 transition-colors"
-                                >
-                                    📄 Document
-                                </button>
-                                <button
-                                    onClick={() => addFlowchartElement('connector')}
-                                    className="p-3 bg-orange-100 border border-orange-300 rounded-full text-sm hover:bg-orange-200 transition-colors"
-                                >
-                                    🔗 Connector
-                                </button>
-                            </div>
-                            {/* **ADDED: Text element button** */}
+                <div className="elements-container">
+                    {/* Terminal Elements */}
+                    <div className="element-group">
+                        <h4 className="group-title">Terminal Elements</h4>
+                        <div className="element-grid">
                             <button
-                                onClick={() => addFlowchartElement('text')}
-                                className="w-full mt-2 p-3 bg-cyan-100 border border-cyan-300 text-sm hover:bg-cyan-200 transition-colors"
+                                onClick={() => addFlowchartElement('start')}
+                                className="element-btn element-btn-start"
+                                title="Add Start Element"
                             >
-                                📝 Text Label
+                                <span className="element-label">Start</span>
+                            </button>
+                            <button
+                                onClick={() => addFlowchartElement('end')}
+                                className="element-btn element-btn-end"
+                                title="Add End Element"
+                            >
+                                <span className="element-label">End</span>
                             </button>
                         </div>
+                    </div>
 
-                        {/* Trash Can */}
-                        <div className="bg-red-50 p-3 rounded border-2 border-dashed border-red-300">
-                            <h4 className="text-sm font-medium text-red-600 mb-2">Delete Zone</h4>
-                            <div
-                                ref={trashCanRef}
-                                className="w-full h-16 bg-red-500 rounded flex items-center justify-center text-white font-bold text-lg cursor-pointer hover:bg-red-600 transition-colors"
+                    {/* Process Elements */}
+                    <div className="element-group">
+                        <h4 className="group-title">Process Elements</h4>
+                        <div className="element-list">
+                            <button
+                                onClick={() => addFlowchartElement('process')}
+                                className="element-btn element-btn-process"
+                                title="Add Process Element"
                             >
-                                🗑️ Drop to Delete
-                            </div>
-                            <p className="text-xs text-red-600 mt-1 text-center">
-                                Drag elements here to delete them
-                            </p>
-                        </div>
-
-                        {/* Instructions */}
-                        <div className="bg-blue-50 p-3 rounded">
-                            <h4 className="text-sm font-medium text-blue-800 mb-2">Instructions</h4>
-                            <div className="text-xs text-blue-700 space-y-1">
-                                <p>• Click elements to add them to canvas</p>
-                                <p>• Drag elements to move them</p>
-                                <p>• Hover over connection points to connect</p>
-                                <p>• Click and drag between elements for arrows</p>
-                                <p>• Double-click to edit labels</p>
-                                <p>• Use Text Label for arrow conditions (Yes/No)</p>
-                                <p>• Drag to trash can to delete</p>
-                            </div>
+                                <span className="element-label">Process</span>
+                            </button>
+                            <button
+                                onClick={() => addFlowchartElement('decision')}
+                                className="element-btn element-btn-decision"
+                                title="Add Decision Element"
+                            >
+                                <span className="element-label">Decision</span>
+                            </button>
+                            <button
+                                onClick={() => addFlowchartElement('predefined')}
+                                className="element-btn element-btn-predefined"
+                                title="Add Predefined Process"
+                            >
+                                <span className="element-label">Predefined</span>
+                            </button>
                         </div>
                     </div>
 
-                    {/* Action Buttons */}
-                    <div className="mt-6 space-y-2">
+                    {/* Input/Output Elements */}
+                    <div className="element-group">
+                        <h4 className="group-title">Input/Output</h4>
+                        <div className="element-grid">
+                            <button
+                                onClick={() => addFlowchartElement('input')}
+                                className="element-btn element-btn-input"
+                                title="Add Input Element"
+                            >
+                                <span className="element-label">Input</span>
+                            </button>
+                            <button
+                                onClick={() => addFlowchartElement('output')}
+                                className="element-btn element-btn-output"
+                                title="Add Output Element"
+                            >
+                                <span className="element-label">Output</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Special Elements */}
+                    <div className="element-group">
+                        <h4 className="group-title">Special Elements</h4>
+                        <div className="element-grid">
+                            <button
+                                onClick={() => addFlowchartElement('document')}
+                                className="element-btn element-btn-document"
+                                title="Add Document Element"
+                            >
+                                <span className="element-label">Document</span>
+                            </button>
+                            <button
+                                onClick={() => addFlowchartElement('connector')}
+                                className="element-btn element-btn-connector"
+                                title="Add Connector Element"
+                            >
+                                <span className="element-label">Connector</span>
+                            </button>
+                        </div>
                         <button
-                            onClick={saveSnapshot}
-                            className="w-full px-3 py-2 bg-purple-500 text-white rounded text-sm hover:bg-purple-600 transition-colors"
+                            onClick={() => addFlowchartElement('text')}
+                            className="element-btn element-btn-text"
+                            title="Add Text Label"
                         >
-                            💾 Save Flowchart
+                            <span className="element-label">Text Label</span>
                         </button>
-                        <button
-                            onClick={deleteSelected}
-                            className="w-full px-3 py-2 bg-red-500 text-white rounded text-sm hover:bg-red-600 transition-colors"
-                        >
-                            🗑️ Delete Selected
-                        </button>
-                        <button
-                            onClick={clearCanvas}
-                            className="w-full px-3 py-2 bg-gray-500 text-white rounded text-sm hover:bg-gray-600 transition-colors"
-                        >
-                            🧹 Clear All
-                        </button>
+                    </div>
+
+                    {/* Instructions */}
+                    <div className="instructions-panel">
+                        <h4 className="group-title">Instructions</h4>
+                        <div className="instruction-list">
+                            <div className="instruction-item">• Click elements to add them to canvas</div>
+                            <div className="instruction-item">• Drag elements to move them</div>
+                            <div className="instruction-item">• Hover over connection points to connect</div>
+                            <div className="instruction-item">• Click and drag between elements for arrows</div>
+                            <div className="instruction-item">• Double-click to edit labels</div>
+                            <div className="instruction-item">• Use Text Label for arrow conditions (Yes/No)</div>
+                            <div className="instruction-item">• Drag to trash can to delete</div>
+                        </div>
                     </div>
                 </div>
-                <div className='right-column'>
-                    {/* Main Canvas Area */}
-                    <div className="flex-1 flex flex-col">
-                        {/* Canvas */}
-                        <div className="flex-1 p-4">
-                            <div
-                                ref={graphContainer}
-                                className="w-full h-full border-2 border-gray-300 rounded-lg bg-white"
-                                style={{
-                                    background: `
-                    radial-gradient(circle, #e5e7eb 1px, transparent 1px),
-                    radial-gradient(circle, #e5e7eb 1px, transparent 1px)
-                    `,
-                                    backgroundSize: '20px 20px',
-                                    backgroundPosition: '0 0, 10px 10px',
-                                    minHeight: '500px'
-                                }}
-                            />
-                        </div>
-                    </div>
 
-                    {/* Toast Container */}
-                    <ToastContainer
-                        position="top-right"
-                        autoClose={3000}
-                        hideProgressBar={false}
-                        newestOnTop={false}
-                        closeOnClick
-                        rtl={false}
-                        pauseOnFocusLoss
-                        draggable
-                        pauseOnHover
-                        theme="light"
-                        toastStyle={{
-                            fontSize: '14px'
-                        }}
-                    />
+                {/* Action Buttons */}
+                <div className="action-buttons">
+                    <button
+                        onClick={saveSnapshot}
+                        className="action-btn action-btn-save"
+                        title="Save Flowchart"
+                    >
+                        <span className="btn-text">Save Flowchart</span>
+                    </button>
+                    <button
+                        onClick={deleteSelected}
+                        className="action-btn action-btn-delete"
+                        title="Delete Selected Elements"
+                    >
+                        <span className="btn-text">Delete Selected</span>
+                    </button>
+                    <button
+                        onClick={clearCanvas}
+                        className="action-btn action-btn-clear"
+                        title="Clear All Elements"
+                    >
+                        <span className="btn-text">Clear All</span>
+                    </button>
                 </div>
             </div>
+
+            {/* Main Canvas Area */}
+            <div className="canvas-container">
+                <div
+                    ref={graphContainer}
+                    className="flowchart-canvas"
+                />
+            </div>
+
+            {/* Toast Container */}
+            <ToastContainer
+                position="top-right"
+                autoClose={3000}
+                hideProgressBar={false}
+                newestOnTop={false}
+                closeOnClick
+                rtl={false}
+                pauseOnFocusLoss
+                draggable
+                pauseOnHover
+                theme="light"
+                className="toast-container"
+            />
         </div>
     );
 };
