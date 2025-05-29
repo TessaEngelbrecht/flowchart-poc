@@ -20,7 +20,7 @@ const {
     mxShape,
     mxKeyHandler,
     mxConnectionConstraint,
-    mxPoint, 
+    mxPoint,
 } = mxgraph({
     mxImageBasePath: 'mxgraph/javascript/src/images',
     mxBasePath: 'mxgraph/javascript/src'
@@ -150,6 +150,7 @@ const FlowchartEditor = ({ problemId, userId }) => {
         if (style.includes('input') || style.includes('output')) return 'input_output';
         if (style.includes('document')) return 'document';
         if (style.includes('connector')) return 'connector';
+        if (style.includes('text')) return 'text_label'; // **ADDED: Text element type**
         return 'process';
     }, []);
 
@@ -236,7 +237,7 @@ const FlowchartEditor = ({ problemId, userId }) => {
         try {
             const newGraph = new mxGraph(graphContainer.current);
 
-            // **ADD THIS: Configure default edge style for visible arrows**
+            // **KEEP ARROW STYLING EXACTLY AS SPECIFIED**
             const style = newGraph.getStylesheet().getDefaultEdgeStyle();
             style[mxConstants.STYLE_STROKECOLOR] = '#000000'; // Black arrows
             style[mxConstants.STYLE_STROKEWIDTH] = 2; // Thicker lines
@@ -450,6 +451,13 @@ const FlowchartEditor = ({ problemId, userId }) => {
                 height = 60;
                 label = 'Predefined';
                 break;
+            // **ADDED: Text element for arrow labeling**
+            case 'text':
+                style = 'text;html=1;align=center;verticalAlign=middle;resizable=1;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=12;fontColor=#000000;';
+                width = 40;
+                height = 20;
+                label = 'Text';
+                break;
             default:
                 return;
         }
@@ -525,171 +533,221 @@ const FlowchartEditor = ({ problemId, userId }) => {
         }
     }, [graph]);
 
+    const [currentSession, setCurrentSession] = useState(null);
+    const [showAnalytics, setShowAnalytics] = useState(true);
+
+    const startNewSession = useCallback(() => {
+        // Clear the current session to force a new one
+        setCurrentSession(null);
+        // Force re-render which will create new session
+        setTimeout(() => {
+            window.location.reload();
+        }, 100);
+    }, []);
+
+    const handleSessionChange = useCallback((sessionId) => {
+        setCurrentSession(sessionId);
+    }, []);
+
     return (
-        <div className="flex h-screen bg-gray-50">
-            {/* Left Sidebar */}
-            <div className="w-72 bg-white border-r border-gray-300 p-4 shadow-sm overflow-y-auto">
-                <h3 className="text-lg font-semibold mb-4 text-gray-800">Flowchart Elements</h3>
+        <div className="flex h-screen bg-gray-50 full-container-things">
+            {/* Info and Elements Column */}
+            <div className='full-container-things'>
+                <div className="w-80 bg-white border-r border-gray-300 p-4 shadow-sm overflow-y-auto left-column">
+                    <div className="flex gap-2">
+                                <button
+                                  onClick={startNewSession}
+                                  className="px-3 py-1 bg-blue-500 rounded text-sm hover:bg-blue-400 transition-colors"
+                                >
+                                  🔄 New Session
+                                </button>
+                                <button
+                                  onClick={() => setShowAnalytics(!showAnalytics)}
+                                  className="px-3 py-1 bg-green-500 rounded text-sm hover:bg-green-400 transition-colors"
+                                >
+                                  {showAnalytics ? 'Hide' : 'Show'} Analytics
+                                </button>
+                              </div>
+                    <h3 className="text-lg font-semibold mb-4 text-gray-800">Flowchart Elements</h3>
 
-                <div className="space-y-4">
-                    {/* Terminal Elements */}
-                    <div className="bg-gray-100 p-3 rounded">
-                        <h4 className="text-sm font-medium text-gray-600 mb-3">Terminal Elements</h4>
-                        <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-4">
+                        {/* Terminal Elements */}
+                        <div className="bg-gray-100 p-3 rounded">
+                            <h4 className="text-sm font-medium text-gray-600 mb-3">Terminal Elements</h4>
+                            <div className="grid grid-cols-2 gap-2">
+                                <button
+                                    onClick={() => addFlowchartElement('start')}
+                                    className="p-3 bg-green-100 border border-green-300 rounded-full text-sm hover:bg-green-200 transition-colors flex items-center justify-center"
+                                >
+                                    🟢 Start
+                                </button>
+                                <button
+                                    onClick={() => addFlowchartElement('end')}
+                                    className="p-3 bg-red-100 border border-red-300 rounded-full text-sm hover:bg-red-200 transition-colors flex items-center justify-center"
+                                >
+                                    🔴 End
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Process Elements */}
+                        <div className="bg-gray-100 p-3 rounded">
+                            <h4 className="text-sm font-medium text-gray-600 mb-3">Process Elements</h4>
+                            <div className="space-y-2">
+                                <button
+                                    onClick={() => addFlowchartElement('process')}
+                                    className="w-full p-3 bg-blue-100 border border-blue-300 text-sm hover:bg-blue-200 transition-colors"
+                                >
+                                    📦 Process
+                                </button>
+                                <button
+                                    onClick={() => addFlowchartElement('decision')}
+                                    className="w-full p-3 bg-yellow-100 border border-yellow-300 text-sm hover:bg-yellow-200 transition-colors"
+                                >
+                                    💎 Decision
+                                </button>
+                                <button
+                                    onClick={() => addFlowchartElement('predefined')}
+                                    className="w-full p-3 bg-orange-100 border border-orange-300 rounded text-sm hover:bg-orange-200 transition-colors"
+                                >
+                                    📋 Predefined
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Input/Output Elements */}
+                        <div className="bg-gray-100 p-3 rounded">
+                            <h4 className="text-sm font-medium text-gray-600 mb-3">Input/Output</h4>
+                            <div className="grid grid-cols-2 gap-2">
+                                <button
+                                    onClick={() => addFlowchartElement('input')}
+                                    className="p-3 bg-purple-100 border border-purple-300 text-sm hover:bg-purple-200 transition-colors"
+                                >
+                                    📥 Input
+                                </button>
+                                <button
+                                    onClick={() => addFlowchartElement('output')}
+                                    className="p-3 bg-purple-100 border border-purple-300 text-sm hover:bg-purple-200 transition-colors"
+                                >
+                                    📤 Output
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Special Elements */}
+                        <div className="bg-gray-100 p-3 rounded">
+                            <h4 className="text-sm font-medium text-gray-600 mb-3">Special Elements</h4>
+                            <div className="grid grid-cols-2 gap-2">
+                                <button
+                                    onClick={() => addFlowchartElement('document')}
+                                    className="p-3 bg-gray-200 border border-gray-400 text-sm hover:bg-gray-300 transition-colors"
+                                >
+                                    📄 Document
+                                </button>
+                                <button
+                                    onClick={() => addFlowchartElement('connector')}
+                                    className="p-3 bg-orange-100 border border-orange-300 rounded-full text-sm hover:bg-orange-200 transition-colors"
+                                >
+                                    🔗 Connector
+                                </button>
+                            </div>
+                            {/* **ADDED: Text element button** */}
                             <button
-                                onClick={() => addFlowchartElement('start')}
-                                className="p-3 bg-green-100 border border-green-300 rounded-full text-sm hover:bg-green-200 transition-colors flex items-center justify-center"
+                                onClick={() => addFlowchartElement('text')}
+                                className="w-full mt-2 p-3 bg-cyan-100 border border-cyan-300 text-sm hover:bg-cyan-200 transition-colors"
                             >
-                                🟢 Start
+                                📝 Text Label
                             </button>
-                            <button
-                                onClick={() => addFlowchartElement('end')}
-                                className="p-3 bg-red-100 border border-red-300 rounded-full text-sm hover:bg-red-200 transition-colors flex items-center justify-center"
+                        </div>
+
+                        {/* Trash Can */}
+                        <div className="bg-red-50 p-3 rounded border-2 border-dashed border-red-300">
+                            <h4 className="text-sm font-medium text-red-600 mb-2">Delete Zone</h4>
+                            <div
+                                ref={trashCanRef}
+                                className="w-full h-16 bg-red-500 rounded flex items-center justify-center text-white font-bold text-lg cursor-pointer hover:bg-red-600 transition-colors"
                             >
-                                🔴 End
-                            </button>
+                                🗑️ Drop to Delete
+                            </div>
+                            <p className="text-xs text-red-600 mt-1 text-center">
+                                Drag elements here to delete them
+                            </p>
+                        </div>
+
+                        {/* Instructions */}
+                        <div className="bg-blue-50 p-3 rounded">
+                            <h4 className="text-sm font-medium text-blue-800 mb-2">Instructions</h4>
+                            <div className="text-xs text-blue-700 space-y-1">
+                                <p>• Click elements to add them to canvas</p>
+                                <p>• Drag elements to move them</p>
+                                <p>• Hover over connection points to connect</p>
+                                <p>• Click and drag between elements for arrows</p>
+                                <p>• Double-click to edit labels</p>
+                                <p>• Use Text Label for arrow conditions (Yes/No)</p>
+                                <p>• Drag to trash can to delete</p>
+                            </div>
                         </div>
                     </div>
 
-                    {/* Process Elements */}
-                    <div className="bg-gray-100 p-3 rounded">
-                        <h4 className="text-sm font-medium text-gray-600 mb-3">Process Elements</h4>
-                        <div className="space-y-2">
-                            <button
-                                onClick={() => addFlowchartElement('process')}
-                                className="w-full p-3 bg-blue-100 border border-blue-300 text-sm hover:bg-blue-200 transition-colors"
-                            >
-                                📦 Process
-                            </button>
-                            <button
-                                onClick={() => addFlowchartElement('decision')}
-                                className="w-full p-3 bg-yellow-100 border border-yellow-300 text-sm hover:bg-yellow-200 transition-colors"
-                            >
-                                💎 Decision
-                            </button>
-                            <button
-                                onClick={() => addFlowchartElement('predefined')}
-                                className="w-full p-3 bg-orange-100 border border-orange-300 rounded text-sm hover:bg-orange-200 transition-colors"
-                            >
-                                📋 Predefined
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Input/Output Elements */}
-                    <div className="bg-gray-100 p-3 rounded">
-                        <h4 className="text-sm font-medium text-gray-600 mb-3">Input/Output</h4>
-                        <div className="grid grid-cols-2 gap-2">
-                            <button
-                                onClick={() => addFlowchartElement('input')}
-                                className="p-3 bg-purple-100 border border-purple-300 text-sm hover:bg-purple-200 transition-colors"
-                            >
-                                📥 Input
-                            </button>
-                            <button
-                                onClick={() => addFlowchartElement('output')}
-                                className="p-3 bg-purple-100 border border-purple-300 text-sm hover:bg-purple-200 transition-colors"
-                            >
-                                📤 Output
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Special Elements */}
-                    <div className="bg-gray-100 p-3 rounded">
-                        <h4 className="text-sm font-medium text-gray-600 mb-3">Special Elements</h4>
-                        <div className="grid grid-cols-2 gap-2">
-                            <button
-                                onClick={() => addFlowchartElement('document')}
-                                className="p-3 bg-gray-200 border border-gray-400 text-sm hover:bg-gray-300 transition-colors"
-                            >
-                                📄 Document
-                            </button>
-                            <button
-                                onClick={() => addFlowchartElement('connector')}
-                                className="p-3 bg-orange-100 border border-orange-300 rounded-full text-sm hover:bg-orange-200 transition-colors"
-                            >
-                                🔗 Connector
-                            </button>
-                        </div>
+                    {/* Action Buttons */}
+                    <div className="mt-6 space-y-2">
+                        <button
+                            onClick={saveSnapshot}
+                            className="w-full px-3 py-2 bg-purple-500 text-white rounded text-sm hover:bg-purple-600 transition-colors"
+                        >
+                            💾 Save Flowchart
+                        </button>
+                        <button
+                            onClick={deleteSelected}
+                            className="w-full px-3 py-2 bg-red-500 text-white rounded text-sm hover:bg-red-600 transition-colors"
+                        >
+                            🗑️ Delete Selected
+                        </button>
+                        <button
+                            onClick={clearCanvas}
+                            className="w-full px-3 py-2 bg-gray-500 text-white rounded text-sm hover:bg-gray-600 transition-colors"
+                        >
+                            🧹 Clear All
+                        </button>
                     </div>
                 </div>
+                <div className='right-column'>
+                    {/* Main Canvas Area */}
+                    <div className="flex-1 flex flex-col">
+                        {/* Canvas */}
+                        <div className="flex-1 p-4">
+                            <div
+                                ref={graphContainer}
+                                className="w-full h-full border-2 border-gray-300 rounded-lg bg-white"
+                                style={{
+                                    background: `
+                    radial-gradient(circle, #e5e7eb 1px, transparent 1px),
+                    radial-gradient(circle, #e5e7eb 1px, transparent 1px)
+                    `,
+                                    backgroundSize: '20px 20px',
+                                    backgroundPosition: '0 0, 10px 10px',
+                                    minHeight: '500px'
+                                }}
+                            />
+                        </div>
+                    </div>
 
-                {/* Action Buttons */}
-                <div className="mt-6 space-y-2">
-                    <button
-                        onClick={saveSnapshot}
-                        className="w-full px-3 py-2 bg-purple-500 text-white rounded text-sm hover:bg-purple-600 transition-colors"
-                    >
-                        💾 Save Flowchart
-                    </button>
-                    <button
-                        onClick={deleteSelected}
-                        className="w-full px-3 py-2 bg-red-500 text-white rounded text-sm hover:bg-red-600 transition-colors"
-                    >
-                        🗑️ Delete Selected
-                    </button>
-                    <button
-                        onClick={clearCanvas}
-                        className="w-full px-3 py-2 bg-gray-500 text-white rounded text-sm hover:bg-gray-600 transition-colors"
-                    >
-                        🧹 Clear All
-                    </button>
-                </div>
-            </div>
-
-            {/* Main Canvas Area */}
-            <div className="flex-1 flex flex-col">
-                <div className="bg-white border-b border-gray-300 p-3">
-                    <h2 className="text-xl font-semibold text-gray-800">Canvas Area</h2>
-                    
-                </div>
-
-                {/* Canvas */}
-                <div className="flex-1 p-4">
-                    <div
-                        ref={graphContainer}
-                        className="w-full h-full border-2 border-gray-300 rounded-lg"
-                        style={{
-                            background: `
-                radial-gradient(circle, #e5e7eb 1px, transparent 1px),
-                radial-gradient(circle, #e5e7eb 1px, transparent 1px)
-              `,
-                            backgroundSize: '20px 20px',
-                            backgroundPosition: '0 0, 10px 10px',
-                            minHeight: '1000px'
+                    {/* Toast Container */}
+                    <ToastContainer
+                        position="top-right"
+                        autoClose={3000}
+                        hideProgressBar={false}
+                        newestOnTop={false}
+                        closeOnClick
+                        rtl={false}
+                        pauseOnFocusLoss
+                        draggable
+                        pauseOnHover
+                        theme="light"
+                        toastStyle={{
+                            fontSize: '14px'
                         }}
                     />
-                </div>
-            </div>
-
-            {/* Toast Container */}
-            <ToastContainer
-                position="top-right"
-                autoClose={3000}
-                hideProgressBar={false}
-                newestOnTop={false}
-                closeOnClick
-                rtl={false}
-                pauseOnFocusLoss
-                draggable
-                pauseOnHover
-                theme="light"
-                toastStyle={{
-                    fontSize: '14px'
-                }}
-            />
-
-            {/* Instructions */}
-            <div className="bg-blue-50 p-3 rounded">
-                <h4 className="text-sm font-medium text-blue-800 mb-2">Instructions</h4>
-                <div className="text-xs text-blue-700 space-y-1">
-                    <p>• Click elements to add them to canvas</p>
-                    <p>• Drag elements to move them</p>
-                    <p>• Hover over connection points to connect</p>
-                    <p>• Click and drag between elements for arrows</p>
-                    <p>• Double-click to edit labels</p>
-                    <p>• Drag to trash can to delete</p>
                 </div>
             </div>
         </div>

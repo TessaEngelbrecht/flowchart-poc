@@ -26,20 +26,7 @@ function App() {
       <header className="bg-blue-600 text-white p-3 shadow-md">
         <div className="flex justify-between items-center">
           <h1 className="text-xl font-bold">Algorithmic Thinking Assessment</h1>
-          <div className="flex gap-2">
-            <button
-              onClick={startNewSession}
-              className="px-3 py-1 bg-blue-500 rounded text-sm hover:bg-blue-400 transition-colors"
-            >
-              🔄 New Session
-            </button>
-            <button
-              onClick={() => setShowAnalytics(!showAnalytics)}
-              className="px-3 py-1 bg-green-500 rounded text-sm hover:bg-green-400 transition-colors"
-            >
-              {showAnalytics ? 'Hide' : 'Show'} Analytics
-            </button>
-          </div>
+          
         </div>
       </header>
 

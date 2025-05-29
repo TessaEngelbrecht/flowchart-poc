@@ -37,44 +37,29 @@
   }
 }
 
-.dndflow {
+.full-container-things {
   display: flex;
-  height: 100vh;
-  font-family: Arial, sans-serif;
+  flex-direction: row;
+  width: 100%;
+  min-height: 100vh;
 }
 
-aside {
-  width: 180px;
-  padding: 10px;
-  border-right: 1px solid #ddd;
-  background: #f7f7f7;
-  overflow-y: auto;
+/* Left column styling */
+.left-column {
+  flex: 1;
+  padding: 20px;
+  background-color: #f4f4f4;
 }
 
-.description {
-  margin-bottom: 10px;
-  font-weight: bold;
+/* Right column styling */
+.right-column {
+  flex: 1;
+  padding: 20px;
+  background-color: #e0e0e0;
 }
 
-.dndnode {
-  padding: 10px;
-  margin-bottom: 10px;
-  border-radius: 3px;
-  cursor: grab;
-  user-select: none;
-  text-align: center;
-  font-weight: bold;
-  color: white;
-}
-
-.dndnode.circle {
-  background-color: #6ede87;
-}
-
-.dndnode.square {
-  background-color: #6868f5;
-}
-
-.reactflow-wrapper {
-  flex-grow: 1;
+@media (max-width: 768px) {
+  .full-container-things {
+    flex-direction: column;
+  }
 }
