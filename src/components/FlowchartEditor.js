@@ -67,19 +67,19 @@ DocumentShape.prototype.paintVertexShape = function (c, x, y, w, h) {
     c.fillAndStroke();
 };
 
-// Custom Connector Shape
-function ConnectorShape() {
-    mxShape.call(this);
-}
+// // Custom Connector Shape
+// function ConnectorShape() {
+//     mxShape.call(this);
+// }
 
-ConnectorShape.prototype = Object.create(mxShape.prototype);
-ConnectorShape.prototype.constructor = ConnectorShape;
+// ConnectorShape.prototype = Object.create(mxShape.prototype);
+// ConnectorShape.prototype.constructor = ConnectorShape;
 
-ConnectorShape.prototype.paintVertexShape = function (c, x, y, w, h) {
-    c.begin();
-    c.ellipse(x, y, w, h);
-    c.fillAndStroke();
-};
+// ConnectorShape.prototype.paintVertexShape = function (c, x, y, w, h) {
+//     c.begin();
+//     c.ellipse(x, y, w, h);
+//     c.fillAndStroke();
+// };
 
 const FlowchartEditor = ({ problemId, userId, onSessionChange }) => {
     const graphContainer = useRef(null);
@@ -143,19 +143,22 @@ const FlowchartEditor = ({ problemId, userId, onSessionChange }) => {
         }
     }, [sessionId, startTime]);
 
+    // Update the getElementType function to correctly identify element types
     const getElementType = useCallback((cell) => {
         if (!cell || !cell.vertex) return 'connection';
 
         const style = cell.style || '';
-        if (style.includes('start') || style.includes('end')) return 'terminal';
-        if (style.includes('decision')) return 'decision';
-        if (style.includes('process')) return 'process';
-        if (style.includes('input') || style.includes('output')) return 'input_output';
+        if (style.includes('ellipse') && style.includes('#d5e8d4')) return 'start';
+        if (style.includes('ellipse') && style.includes('#f8cecc')) return 'end';
+        if (style.includes('rhombus')) return 'decision';
+        if (style.includes('parallelogram')) return 'input_output';
         if (style.includes('document')) return 'document';
-        if (style.includes('connector')) return 'connector';
-        if (style.includes('text')) return 'text_label';
-        return 'process';
+        if (style.includes('rect') && style.includes('rounded=1')) return 'predefined';
+        if (style.startsWith('text;')) return 'text_label';
+        if (style.includes('rect')) return 'process';
+        return 'element';
     }, []);
+
 
     const setupConnectionConstraints = useCallback((graph) => {
         graph.getAllConnectionConstraints = function (terminal) {
@@ -193,7 +196,7 @@ const FlowchartEditor = ({ problemId, userId, onSessionChange }) => {
     const registerCustomShapes = useCallback(() => {
         mxCellRenderer.registerShape('parallelogram', ParallelogramShape);
         mxCellRenderer.registerShape('document', DocumentShape);
-        mxCellRenderer.registerShape('connector', ConnectorShape);
+        //mxCellRenderer.registerShape('connector', ConnectorShape);
     }, []);
 
 
@@ -206,7 +209,6 @@ const FlowchartEditor = ({ problemId, userId, onSessionChange }) => {
         }
 
         try {
-            //registerCustomShapes();
 
             const newGraph = new mxGraph(graphContainer.current);
 
@@ -414,12 +416,12 @@ const FlowchartEditor = ({ problemId, userId, onSessionChange }) => {
                 height = 70;
                 label = 'Document';
                 break;
-            case 'connector':
-                style = 'shape=connector;whiteSpace=wrap;html=1;fillColor=#ffcc99;strokeColor=#ff9900;strokeWidth=2;';
-                width = 30;
-                height = 30;
-                label = '';
-                break;
+            // case 'connector':
+            //     style = 'shape=connector;whiteSpace=wrap;html=1;fillColor=#ffcc99;strokeColor=#ff9900;strokeWidth=2;';
+            //     width = 30;
+            //     height = 30;
+            //     label = '';
+            //     break;
             case 'predefined':
                 style = 'shape=rect;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;rounded=1;strokeWidth=2;';
                 width = 120;
@@ -597,21 +599,22 @@ const FlowchartEditor = ({ problemId, userId, onSessionChange }) => {
                             >
                                 <span className="element-label">Document</span>
                             </button>
-                            <button
+                            {/* <button
                                 onClick={() => addFlowchartElement('connector')}
                                 className="element-btn element-btn-connector"
                                 title="Add Connector Element"
                             >
                                 <span className="element-label">Connector</span>
-                            </button>
-                        </div>
+                            </button> */}
+                        
                         <button
                             onClick={() => addFlowchartElement('text')}
                             className="element-btn element-btn-text"
                             title="Add Text Label"
                         >
                             <span className="element-label">Text Label</span>
-                        </button>
+                            </button>
+                        </div>
                     </div>
 
                     {/* Instructions */}

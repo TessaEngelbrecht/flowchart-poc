@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import FlowchartEditor from './components/FlowchartEditor';
 import Analytics from './components/Analytics';
+import SessionGraph from './components/SessionGraph';
 import './App.css';
 
 function App() {
@@ -48,7 +49,16 @@ function App() {
             onSessionChange={handleSessionChange}
           />
         </div>
+        {/* Analytics Panel fixed at bottom
+        {showAnalytics && (
+          <div className="analytics-panel">
+            <Analytics sessionId={currentSession} />
+          </div>
+        )} */}
       </main>
+      <div className="session-graph-container">
+        <SessionGraph />
+      </div>
     </div>
   );
 }

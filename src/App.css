@@ -677,7 +677,6 @@ body {
   border: 1px solid #bfdbfe;
   border-radius: 0.75rem;
   padding: 1rem;
-  margin-bottom: 1.5rem;
 }
 
 .instruction-list {
@@ -886,4 +885,93 @@ body {
   .flowchart-canvas {
     min-height: 300px;
   }
+}
+
+
+/* Session Graph Styles */
+.session-graph-container {
+  padding: 1.5rem;
+  background: white;
+  border-radius: 0.75rem;
+  margin: 1rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.session-input-container {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.session-input {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+}
+
+.session-input:focus {
+  outline: none;
+  border-color: #3d86e6;
+  box-shadow: 0 0 0 3px rgba(61, 134, 230, 0.2);
+}
+
+.graph-container {
+  margin-top: 1rem;
+}
+
+.graph-container h3 {
+  text-align: center;
+  margin-bottom: 1rem;
+  color: #2d3748;
+}
+/* Action Flowchart Container */
+.graph-container {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: white;
+  border-radius: 0.75rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+/* Session Input */
+.session-input-container {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.session-input {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+}
+
+.session-input:focus {
+  outline: none;
+  border-color: #3d86e6;
+  box-shadow: 0 0 0 3px rgba(61, 134, 230, 0.2);
+}
+.save-diagram-btn {
+  margin-top: 15px;
+  padding: 10px 20px;
+  background: #3d86e6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.save-diagram-btn:hover {
+  background: #2b6cb0;
+}
+
+.save-diagram-btn:disabled {
+  background: #a0aec0;
+  cursor: not-allowed;
 }
