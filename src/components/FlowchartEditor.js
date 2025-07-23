@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useImperativeHandle } from 'react';
 import { supabase } from '../lib/supabase';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -26,7 +26,7 @@ const {
     mxBasePath: 'mxgraph/javascript/src'
 });
 
-// Custom Parallelogram Shape for Input/Output
+// Custom shape definitions (unchanged)
 function ParallelogramShape() {
     mxShape.call(this);
 }
@@ -36,7 +36,6 @@ ParallelogramShape.prototype.constructor = ParallelogramShape;
 
 ParallelogramShape.prototype.paintVertexShape = function (c, x, y, w, h) {
     const offset = w * 0.2;
-
     c.begin();
     c.moveTo(x + offset, y);
     c.lineTo(x + w, y);
@@ -46,7 +45,6 @@ ParallelogramShape.prototype.paintVertexShape = function (c, x, y, w, h) {
     c.fillAndStroke();
 };
 
-// Custom Document Shape
 function DocumentShape() {
     mxShape.call(this);
 }
@@ -56,7 +54,6 @@ DocumentShape.prototype.constructor = DocumentShape;
 
 DocumentShape.prototype.paintVertexShape = function (c, x, y, w, h) {
     const waveHeight = h * 0.1;
-
     c.begin();
     c.moveTo(x, y);
     c.lineTo(x + w, y);
@@ -67,21 +64,14 @@ DocumentShape.prototype.paintVertexShape = function (c, x, y, w, h) {
     c.fillAndStroke();
 };
 
-// // Custom Connector Shape
-// function ConnectorShape() {
-//     mxShape.call(this);
-// }
-
-// ConnectorShape.prototype = Object.create(mxShape.prototype);
-// ConnectorShape.prototype.constructor = ConnectorShape;
-
-// ConnectorShape.prototype.paintVertexShape = function (c, x, y, w, h) {
-//     c.begin();
-//     c.ellipse(x, y, w, h);
-//     c.fillAndStroke();
-// };
-
-const FlowchartEditor = ({ problemId, userId, onSessionChange }) => {
+const FlowchartEditor = React.forwardRef(({
+    problemId,
+    userId,
+    onSessionChange,
+    isLecturerMode = false,
+    onXmlChange = null
+}, ref) => {
+    // State declarations
     const graphContainer = useRef(null);
     const trashCanRef = useRef(null);
     const [graph, setGraph] = useState(null);
@@ -90,6 +80,63 @@ const FlowchartEditor = ({ problemId, userId, onSessionChange }) => {
     const [draggedElement, setDraggedElement] = useState(null);
     const sessionInitialized = useRef(false);
 
+    // Define getGraphXml early
+    const getGraphXml = useCallback(() => {
+        if (!graph) return null;
+
+        try {
+            const encoder = new mxCodec();
+            const node = encoder.encode(graph.getModel());
+            return mxUtils.getXml(node);
+        } catch (error) {
+            console.error('Error getting graph XML:', error);
+            return null;
+        }
+    }, [graph]);
+
+    // Define saveSnapshot BEFORE useImperativeHandle
+    const saveSnapshot = useCallback(async () => {
+        if (!graph || !sessionId) {
+            toast.warning('No session or graph available to save');
+            return;
+        }
+
+        try {
+            window['mxGraphModel'] = mxGraphModel;
+            window['mxGeometry'] = mxGeometry;
+
+            const encoder = new mxCodec();
+            const node = encoder.encode(graph.getModel());
+            const xml = mxUtils.getXml(node);
+
+            const { data, error } = await supabase
+                .from('flowchart_snapshots')
+                .insert({
+                    session_id: sessionId,
+                    snapshot_data: { xml },
+                    trigger_event: 'manual_save'
+                });
+
+            if (error) {
+                console.error('Save error:', error);
+                toast.error('Failed to save flowchart');
+            } else {
+                toast.success('Flowchart saved successfully!');
+            }
+        } catch (error) {
+            toast.error('Failed to save flowchart');
+            console.error('Save error:', error);
+        }
+    }, [graph, sessionId]);
+
+    // Now useImperativeHandle can safely reference saveSnapshot
+    useImperativeHandle(ref, () => ({
+        getGraphXml,
+        saveSnapshot,
+        graph
+    }), [getGraphXml, saveSnapshot, graph]);
+
+    // Initialize session function
     const initializeSession = useCallback(async () => {
         if (sessionInitialized.current || sessionId) return;
 
@@ -98,7 +145,7 @@ const FlowchartEditor = ({ problemId, userId, onSessionChange }) => {
                 .from('flowchart_sessions')
                 .insert({
                     user_id: userId,
-                    problem_id: problemId
+                    problem_id: problemId,
                 })
                 .select()
                 .single();
@@ -106,10 +153,7 @@ const FlowchartEditor = ({ problemId, userId, onSessionChange }) => {
             if (data) {
                 setSessionId(data.id);
                 sessionInitialized.current = true;
-                if (onSessionChange) {
-                    onSessionChange(data.id);
-                }
-                toast.success('Session started successfully!');
+                if (onSessionChange) onSessionChange(data.id);
             }
         } catch (error) {
             toast.error('Failed to start session');
@@ -117,6 +161,7 @@ const FlowchartEditor = ({ problemId, userId, onSessionChange }) => {
         }
     }, [userId, problemId, sessionId, onSessionChange]);
 
+    // Track action function
     const trackAction = useCallback(async (actionType, elementId, elementType, position, details = {}) => {
         if (!sessionId) return;
 
@@ -143,7 +188,7 @@ const FlowchartEditor = ({ problemId, userId, onSessionChange }) => {
         }
     }, [sessionId, startTime]);
 
-    // Update the getElementType function to correctly identify element types
+    // Get element type function
     const getElementType = useCallback((cell) => {
         if (!cell || !cell.vertex) return 'connection';
 
@@ -159,7 +204,7 @@ const FlowchartEditor = ({ problemId, userId, onSessionChange }) => {
         return 'element';
     }, []);
 
-
+    // Connection constraints setup
     const setupConnectionConstraints = useCallback((graph) => {
         graph.getAllConnectionConstraints = function (terminal) {
             if (terminal != null && terminal.cell != null && this.model.isVertex(terminal.cell)) {
@@ -183,23 +228,15 @@ const FlowchartEditor = ({ problemId, userId, onSessionChange }) => {
         if (graph.connectionHandler && graph.connectionHandler.constraintHandler) {
             graph.connectionHandler.constraintHandler.enabled = true;
         }
-
-        if (typeof mxgraph().mxConstraintHandler !== 'undefined') {
-            const mxConstraintHandler = mxgraph().mxConstraintHandler;
-            mxConstraintHandler.prototype.intersects = function (icon, point, source, existingEdge) {
-                if (!icon || !icon.bounds || !point) return false;
-                return (!source || existingEdge) || mxUtils.intersects(icon.bounds, point);
-            };
-        }
     }, []);
 
+    // Register custom shapes
     const registerCustomShapes = useCallback(() => {
         mxCellRenderer.registerShape('parallelogram', ParallelogramShape);
         mxCellRenderer.registerShape('document', DocumentShape);
-        //mxCellRenderer.registerShape('connector', ConnectorShape);
     }, []);
 
-
+    // Graph initialization
     const initializeGraph = useCallback(() => {
         if (!graphContainer.current || graph) return;
 
@@ -209,25 +246,22 @@ const FlowchartEditor = ({ problemId, userId, onSessionChange }) => {
         }
 
         try {
-
             const newGraph = new mxGraph(graphContainer.current);
 
-           // setupConnectionConstraints(newGraph);
-            //setupTrashCan(newGraph);
-
-            // Styling arrows AFTER registering custom shapes
+            // Styling arrows
             const style = newGraph.getStylesheet().getDefaultEdgeStyle();
-            style[mxConstants.STYLE_STROKECOLOR] = '#000000'; // Black arrows
-            style[mxConstants.STYLE_STROKEWIDTH] = 2; // Thicker lines
-            style[mxConstants.STYLE_ENDARROW] = mxConstants.ARROW_CLASSIC; // Arrow heads
-            style[mxConstants.STYLE_STARTARROW] = mxConstants.NONE; // No start arrow
-            style[mxConstants.STYLE_EDGE] = mxConstants.EDGESTYLE_ORTHOGONAL; // Clean edges
+            style[mxConstants.STYLE_STROKECOLOR] = '#000000';
+            style[mxConstants.STYLE_STROKEWIDTH] = 2;
+            style[mxConstants.STYLE_ENDARROW] = mxConstants.ARROW_CLASSIC;
+            style[mxConstants.STYLE_STARTARROW] = mxConstants.NONE;
+            style[mxConstants.STYLE_EDGE] = mxConstants.EDGESTYLE_ORTHOGONAL;
 
             // Enable connections and drag/drop
             newGraph.setConnectable(true);
             newGraph.setAllowDanglingEdges(false);
             new mxRubberband(newGraph);
 
+            // Key handlers
             const keyHandler = new mxKeyHandler(newGraph);
             keyHandler.bindKey(46, function (evt) {
                 if (newGraph.isEnabled()) {
@@ -242,7 +276,7 @@ const FlowchartEditor = ({ problemId, userId, onSessionChange }) => {
                 }
             });
 
-            // Track cell additions
+            // Event listeners for tracking
             newGraph.addListener(mxEvent.CELLS_ADDED, function (sender, evt) {
                 const cells = evt.getProperty('cells');
                 if (cells) {
@@ -279,7 +313,7 @@ const FlowchartEditor = ({ problemId, userId, onSessionChange }) => {
                 }
             });
 
-            // Track cell movements
+            // Additional event listeners (movements, removals, label changes)
             newGraph.addListener(mxEvent.CELLS_MOVED, function (sender, evt) {
                 const cells = evt.getProperty('cells');
                 if (cells && cells.length > 0) {
@@ -310,7 +344,6 @@ const FlowchartEditor = ({ problemId, userId, onSessionChange }) => {
                 }
             });
 
-            // Track other events
             newGraph.addListener(mxEvent.CELLS_REMOVED, function (sender, evt) {
                 const cells = evt.getProperty('cells');
                 if (cells) {
@@ -352,6 +385,23 @@ const FlowchartEditor = ({ problemId, userId, onSessionChange }) => {
         }
     }, [trackAction, getElementType, graph, registerCustomShapes, setupConnectionConstraints]);
 
+    // XML change effect
+    useEffect(() => {
+        if (graph && onXmlChange) {
+            const handleModelChange = () => {
+                const xml = getGraphXml();
+                if (xml) onXmlChange(xml);
+            };
+
+            graph.getModel().addListener(mxEvent.CHANGE, handleModelChange);
+
+            return () => {
+                graph.getModel().removeListener(mxEvent.CHANGE, handleModelChange);
+            };
+        }
+    }, [graph, onXmlChange, getGraphXml]);
+
+    // Component initialization effects
     useEffect(() => {
         if (!sessionInitialized.current) {
             initializeSession();
@@ -364,6 +414,7 @@ const FlowchartEditor = ({ problemId, userId, onSessionChange }) => {
         }
     }, [initializeGraph, graph, sessionId]);
 
+    // Add flowchart element function
     const addFlowchartElement = useCallback((elementType) => {
         if (!graph) {
             toast.warning('Graph not ready yet');
@@ -373,6 +424,7 @@ const FlowchartEditor = ({ problemId, userId, onSessionChange }) => {
         const parent = graph.getDefaultParent();
         let style, width, height, label;
 
+        // Element type switch statement remains the same...
         switch (elementType) {
             case 'start':
                 style = 'shape=ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=2;';
@@ -416,12 +468,6 @@ const FlowchartEditor = ({ problemId, userId, onSessionChange }) => {
                 height = 70;
                 label = 'Document';
                 break;
-            // case 'connector':
-            //     style = 'shape=connector;whiteSpace=wrap;html=1;fillColor=#ffcc99;strokeColor=#ff9900;strokeWidth=2;';
-            //     width = 30;
-            //     height = 30;
-            //     label = '';
-            //     break;
             case 'predefined':
                 style = 'shape=rect;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;rounded=1;strokeWidth=2;';
                 width = 120;
@@ -450,40 +496,7 @@ const FlowchartEditor = ({ problemId, userId, onSessionChange }) => {
         }
     }, [graph]);
 
-    const saveSnapshot = useCallback(async () => {
-        if (!graph || !sessionId) {
-            toast.warning('No session or graph available to save');
-            return;
-        }
-
-        try {
-            window['mxGraphModel'] = mxGraphModel;
-            window['mxGeometry'] = mxGeometry;
-
-            const encoder = new mxCodec();
-            const node = encoder.encode(graph.getModel());
-            const xml = mxUtils.getXml(node);
-
-            const { data, error } = await supabase
-                .from('flowchart_snapshots')
-                .insert({
-                    session_id: sessionId,
-                    snapshot_data: { xml },
-                    trigger_event: 'manual_save'
-                });
-
-            if (error) {
-                console.error('Save error:', error);
-                toast.error('Failed to save flowchart');
-            } else {
-                toast.success('Flowchart saved successfully!');
-            }
-        } catch (error) {
-            toast.error('Failed to save flowchart');
-            console.error('Save error:', error);
-        }
-    }, [graph, sessionId]);
-
+    // Other utility functions
     const clearCanvas = useCallback(() => {
         if (!graph) return;
 
@@ -509,16 +522,16 @@ const FlowchartEditor = ({ problemId, userId, onSessionChange }) => {
         }
     }, [graph]);
 
+    // Render (unchanged)
     return (
         <div className="flowchart-editor-container">
-            {/* Sidebar */}
+            {/* Rest of your JSX remains exactly the same */}
             <div className="flowchart-sidebar">
                 <div className="sidebar-header">
                     <h3 className="sidebar-title">Flowchart Elements</h3>
                 </div>
 
                 <div className="elements-container">
-                    {/* Terminal Elements */}
                     <div className="element-group">
                         <h4 className="group-title">Terminal Elements</h4>
                         <div className="element-grid">
@@ -539,7 +552,6 @@ const FlowchartEditor = ({ problemId, userId, onSessionChange }) => {
                         </div>
                     </div>
 
-                    {/* Process Elements */}
                     <div className="element-group">
                         <h4 className="group-title">Process Elements</h4>
                         <div className="element-list">
@@ -567,7 +579,6 @@ const FlowchartEditor = ({ problemId, userId, onSessionChange }) => {
                         </div>
                     </div>
 
-                    {/* Input/Output Elements */}
                     <div className="element-group">
                         <h4 className="group-title">Input/Output</h4>
                         <div className="element-grid">
@@ -588,7 +599,6 @@ const FlowchartEditor = ({ problemId, userId, onSessionChange }) => {
                         </div>
                     </div>
 
-                    {/* Special Elements */}
                     <div className="element-group">
                         <h4 className="group-title">Special Elements</h4>
                         <div className="element-grid">
@@ -599,31 +609,22 @@ const FlowchartEditor = ({ problemId, userId, onSessionChange }) => {
                             >
                                 <span className="element-label">Document</span>
                             </button>
-                            {/* <button
-                                onClick={() => addFlowchartElement('connector')}
-                                className="element-btn element-btn-connector"
-                                title="Add Connector Element"
+                            <button
+                                onClick={() => addFlowchartElement('text')}
+                                className="element-btn element-btn-text"
+                                title="Add Text Label"
                             >
-                                <span className="element-label">Connector</span>
-                            </button> */}
-                        
-                        <button
-                            onClick={() => addFlowchartElement('text')}
-                            className="element-btn element-btn-text"
-                            title="Add Text Label"
-                        >
-                            <span className="element-label">Text Label</span>
+                                <span className="element-label">Text Label</span>
                             </button>
                         </div>
                     </div>
 
-                    {/* Instructions */}
                     <div className="instructions-panel">
                         <h4 className="group-title">Instructions</h4>
                         <div className="instruction-list">
                             <div className="instruction-item">• Click elements to add them to canvas</div>
                             <div className="instruction-item">• Drag elements to move them</div>
-                            <div className="instruction-item">• Hover over the middle of an element, hold and drag to create connection pints</div>
+                            <div className="instruction-item">• Hover over the middle of an element, hold and drag to create connection points</div>
                             <div className="instruction-item">• Click and drag between elements for arrows</div>
                             <div className="instruction-item">• Double-click to edit labels</div>
                             <div className="instruction-item">• Use Text Label for arrow conditions (Yes/No)</div>
@@ -631,7 +632,6 @@ const FlowchartEditor = ({ problemId, userId, onSessionChange }) => {
                     </div>
                 </div>
 
-                {/* Action Buttons */}
                 <div className="action-buttons">
                     <button
                         onClick={saveSnapshot}
@@ -657,7 +657,6 @@ const FlowchartEditor = ({ problemId, userId, onSessionChange }) => {
                 </div>
             </div>
 
-            {/* Main Canvas Area */}
             <div className="canvas-container">
                 <div
                     ref={graphContainer}
@@ -665,7 +664,6 @@ const FlowchartEditor = ({ problemId, userId, onSessionChange }) => {
                 />
             </div>
 
-            {/* Toast Container */}
             <ToastContainer
                 position="top-right"
                 autoClose={3000}
@@ -681,6 +679,6 @@ const FlowchartEditor = ({ problemId, userId, onSessionChange }) => {
             />
         </div>
     );
-};
+});
 
 export default FlowchartEditor;
