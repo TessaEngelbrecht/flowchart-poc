@@ -636,13 +636,6 @@ const FlowchartEditor = React.forwardRef(({
 
                 <div className="action-buttons">
                     <button
-                        onClick={saveSnapshot}
-                        className="action-btn action-btn-save"
-                        title="Save Flowchart"
-                    >
-                        <span className="btn-text">Save Flowchart</span>
-                    </button>
-                    <button
                         onClick={deleteSelected}
                         className="action-btn action-btn-delete"
                         title="Delete Selected Elements"
