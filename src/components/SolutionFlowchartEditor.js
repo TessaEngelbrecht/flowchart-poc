@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import FlowchartEditor from './FlowchartEditor';
 import { toast } from 'react-toastify';
+import { LTLService } from '../services/LTLService';
 
 const SolutionFlowchartEditor = ({
     problem,
@@ -51,25 +52,20 @@ const SolutionFlowchartEditor = ({
             toast.error('No flowchart data to save');
             return;
         }
-
         setLoading(true);
         try {
-            let result;
-
+            let record;
             if (solutionId) {
-                // Update existing solution
                 const { data, error } = await supabase
                     .from('assessment_solutions')
                     .update({ flowchart_xml: flowchartXml })
                     .eq('id', solutionId)
                     .select()
                     .single();
-
                 if (error) throw error;
-                result = data;
-                toast.success('Solution updated successfully!');
+                record = data;
+                toast.success('Solution updated!');
             } else {
-                // Create new solution
                 const { data, error } = await supabase
                     .from('assessment_solutions')
                     .insert({
@@ -79,19 +75,17 @@ const SolutionFlowchartEditor = ({
                     })
                     .select()
                     .single();
-
                 if (error) throw error;
-                result = data;
-                toast.success('Solution saved successfully! Ready for LTL formula generation.');
+                record = data;
+                toast.success('Solution saved!');
             }
-
-            // Log the saved solution for debugging
-            console.log('Solution saved to database:', result);
-
+            // Generate & save LTL formulas after saving solution
+            await LTLService.generateAndStoreSolutionFormulas(problem.id, record.id, flowchartXml);
+            toast.success('LTL formulas generated and stored!');
             onSolutionSaved();
         } catch (error) {
-            console.error('Error saving solution:', error);
-            toast.error('Failed to save solution');
+            console.error('Error in saveSolution:', error);
+            toast.error('Failed to save solution or generate formulas.');
         } finally {
             setLoading(false);
         }

@@ -414,7 +414,6 @@ const FlowchartEditor = React.forwardRef(({
         }
     }, [initializeGraph, graph, sessionId]);
 
-    // Add flowchart element function
     const addFlowchartElement = useCallback((elementType) => {
         if (!graph) {
             toast.warning('Graph not ready yet');
@@ -424,58 +423,60 @@ const FlowchartEditor = React.forwardRef(({
         const parent = graph.getDefaultParent();
         let style, width, height, label;
 
-        // Element type switch statement remains the same...
+        // Embed element type in style for reliable parsing
+        const typeEmbedding = `elementType=${elementType};`;
+
         switch (elementType) {
             case 'start':
-                style = 'shape=ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=2;';
+                style = `${typeEmbedding}shape=ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=2;`;
                 width = 100;
                 height = 50;
                 label = 'Start';
                 break;
             case 'end':
-                style = 'shape=ellipse;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;strokeWidth=2;';
+                style = `${typeEmbedding}shape=ellipse;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;strokeWidth=2;`;
                 width = 100;
                 height = 50;
                 label = 'End';
                 break;
             case 'process':
-                style = 'shape=rect;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;';
+                style = `${typeEmbedding}shape=rect;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;`;
                 width = 120;
                 height = 60;
                 label = 'Process';
                 break;
             case 'decision':
-                style = 'shape=rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;';
+                style = `${typeEmbedding}shape=rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;`;
                 width = 120;
                 height = 80;
                 label = 'Decision?';
                 break;
             case 'input':
-                style = 'shape=parallelogram;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;';
+                style = `${typeEmbedding}shape=parallelogram;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;`;
                 width = 120;
                 height = 60;
                 label = 'Input';
                 break;
             case 'output':
-                style = 'shape=parallelogram;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;';
+                style = `${typeEmbedding}shape=parallelogram;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;`;
                 width = 120;
                 height = 60;
                 label = 'Output';
                 break;
             case 'document':
-                style = 'shape=document;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=2;';
+                style = `${typeEmbedding}shape=document;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=2;`;
                 width = 100;
                 height = 70;
                 label = 'Document';
                 break;
             case 'predefined':
-                style = 'shape=rect;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;rounded=1;strokeWidth=2;';
+                style = `${typeEmbedding}shape=rect;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;rounded=1;strokeWidth=2;`;
                 width = 120;
                 height = 60;
                 label = 'Predefined';
                 break;
             case 'text':
-                style = 'text;html=1;align=center;verticalAlign=middle;resizable=1;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=12;fontColor=#000000;';
+                style = `${typeEmbedding}text;html=1;align=center;verticalAlign=middle;resizable=1;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=12;fontColor=#000000;`;
                 width = 40;
                 height = 20;
                 label = 'Text';
@@ -495,6 +496,7 @@ const FlowchartEditor = React.forwardRef(({
             graph.getModel().endUpdate();
         }
     }, [graph]);
+
 
     // Other utility functions
     const clearCanvas = useCallback(() => {
