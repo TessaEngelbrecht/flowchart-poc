@@ -1,6 +1,7 @@
 // src/services/AssessmentService.js
 import { supabase } from '../lib/supabase';
 import { LTLService } from './LTLService';
+import { ProcessAssessmentService } from './ProcessAssessmentService';
 
 class FlowchartAssessment {
     constructor(xmlString) {
@@ -658,10 +659,30 @@ class FlowchartAssessment {
 
 }
 
+
 export const AssessmentService = {
-    async assessStudentFlowchart(problemId, sessionId, flowchartXml) {
+    async assessStudentFlowchart(problemId, sessionId, flowchartXml, studentNumber) {
         try {
-            // Get all applicable LTL formulas
+            console.log('🎯 Assessment starting for student:', studentNumber, 'session:', sessionId, 'problem:', problemId);
+
+            // Get user actions for this SPECIFIC session
+            const { data: userActions, error: actionsError } = await supabase
+                .from('user_actions')
+                .select('*')
+                .eq('session_id', sessionId)
+                .order('timestamp', { ascending: true });
+
+            if (actionsError) {
+                console.error('Error fetching user actions:', actionsError);
+                throw actionsError;
+            }
+
+            console.log('📊 Found', userActions.length, 'user actions for session:', sessionId);
+
+            // Create linear diagram
+            await this.createLinearDiagram(sessionId, userActions);
+
+            // Structural assessment (LTL formulas)
             const [universalFormulas, problemFormulas] = await Promise.all([
                 LTLService.getUniversalFormulas(),
                 LTLService.getProblemFormulas(problemId)
@@ -673,54 +694,196 @@ export const AssessmentService = {
                 throw new Error('No LTL formulas found for assessment');
             }
 
-            // Create assessment instance
             const assessment = new FlowchartAssessment(flowchartXml);
-
-            // Evaluate each formula
-            const results = allFormulas.map(formula =>
+            const structuralResults = allFormulas.map(formula =>
                 assessment.evaluateFormula(formula)
             );
 
-            // Calculate score
-            const passedCount = results.filter(r => r.passed).length;
-            const totalCount = results.length;
-            const score = Math.round((passedCount / totalCount) * 100);
+            const structuralScore = Math.round((structuralResults.filter(r => r.passed).length / structuralResults.length) * 100);
 
-            // Store assessment results
+            console.log('🏗️ Structural assessment complete. Score:', structuralScore);
+
+            // Process-based assessment - SEPARATE TRY-CATCH
+            let processResults;
+            try {
+                const processService = new ProcessAssessmentService();
+                processResults = await processService.assessAlgorithmicThinking(userActions, sessionId, studentNumber);
+                console.log('🧠 Process assessment complete. Raw Score:', processResults.totalScore);
+            } catch (processError) {
+                console.error('⚠️ Process assessment failed:', processError);
+                // Fallback process results
+                processResults = {
+                    totalScore: 0,
+                    breakdown: { planning: 0, refinement: 0, efficiency: 0, patterns: 0, errorRecovery: 0, total: 0 },
+                    feedback: { strengths: [], improvements: ['Process assessment failed'], suggestions: [] },
+                    testingDetails: {},
+                    simplifiedAnalysis: {}
+                };
+            }
+
+            // FIXED: Normalize process score to 100% scale
+            const maxPossibleProcessScore = 85; // Based on current point distribution (25+25+20+15)
+            const normalizedProcessScore = Math.round((processResults.totalScore / maxPossibleProcessScore) * 100);
+
+            // Calculate combined score using normalized process score (60% structural, 40% process)
+            const combinedScore = Math.round((structuralScore * 0.6) + (normalizedProcessScore * 0.4));
+
+            console.log(`📈 Process Score: ${processResults.totalScore}/${maxPossibleProcessScore} = ${normalizedProcessScore}%`);
+            console.log(`📈 Combined score calculated: ${combinedScore}%`);
+
+            // Store comprehensive results in student_assessments
             const assessmentData = {
                 session_id: sessionId,
                 problem_id: problemId,
-                total_formulas: totalCount,
-                passed_formulas: passedCount,
-                score_percentage: score,
-                assessment_results: results,
+                student_number: studentNumber,
+                total_formulas: allFormulas.length,
+                passed_formulas: structuralResults.filter(r => r.passed).length,
+                score_percentage: structuralScore,
+                process_score: normalizedProcessScore, // Store normalized score
+                combined_score: combinedScore,
+                assessment_results: structuralResults,
+                process_feedback: processResults.feedback,
                 flowchart_xml: flowchartXml,
                 assessed_at: new Date().toISOString()
             };
 
-            const { data, error } = await supabase
+            console.log('💾 Storing main assessment data...');
+
+            const { data: mainAssessment, error: mainError } = await supabase
                 .from('student_assessments')
                 .insert(assessmentData)
                 .select()
                 .single();
 
-            if (error) throw error;
+            if (mainError) {
+                console.error('❌ Main assessment storage failed:', mainError);
+                throw mainError;
+            }
+
+            console.log('✅ Main assessment stored successfully:', mainAssessment.id);
 
             return {
                 success: true,
-                score: score,
-                passedCount,
-                totalCount,
-                results,
-                assessmentId: data.id
+                structuralScore: structuralScore,
+                processScore: normalizedProcessScore,  // Return normalized score
+                combinedScore: combinedScore,
+                structuralResults: structuralResults,
+                processResults: {
+                    ...processResults,
+                    totalScore: normalizedProcessScore  // Update to normalized score for display
+                },
+                assessmentId: mainAssessment.id,
+                studentNumber: studentNumber
             };
 
         } catch (error) {
-            console.error('Error in student assessment:', error);
+            console.error('🚨 Error in comprehensive assessment:', error);
             throw error;
+        }
+    },
+
+    async createLinearDiagram(sessionId, userActions) {
+        try {
+            console.log('Creating linear diagram for session:', sessionId, 'with', userActions.length, 'actions');
+
+            // Format actions for linear diagram - matching your original sessionGraph format
+            const linearPattern = userActions.map(action => ({
+                action_type: action.action_type,
+                element_type: action.element_type,
+                label: action.details?.cell_value || action.details?.new_label || '',
+                timestamp: action.timestamp
+            }));
+
+            // Check if linear diagram already exists for this session
+            const { data: existingDiagram } = await supabase
+                .from('linear_diagrams')
+                .select('id')
+                .eq('session_id', sessionId)
+                .single();
+
+            if (existingDiagram) {
+                // Update existing diagram
+                const { error: updateError } = await supabase
+                    .from('linear_diagrams')
+                    .update({
+                        linear_pattern: linearPattern,
+                        created_at: new Date().toISOString()
+                    })
+                    .eq('session_id', sessionId);
+
+                if (updateError) throw updateError;
+                console.log('Updated existing linear diagram for session:', sessionId);
+            } else {
+                // Create new diagram
+                const { error: insertError } = await supabase
+                    .from('linear_diagrams')
+                    .insert({
+                        session_id: sessionId,
+                        linear_pattern: linearPattern
+                    });
+
+                if (insertError) throw insertError;
+                console.log('Created new linear diagram for session:', sessionId);
+            }
+
+        } catch (error) {
+            console.error('Error creating linear diagram:', error);
+            // Don't throw - this shouldn't fail the assessment
+        }
+    },
+
+
+    async createLinearDiagram(sessionId, userActions) {
+        try {
+            console.log('Creating linear diagram for session:', sessionId, 'with', userActions.length, 'actions');
+
+            // Format actions for linear diagram - matching your original sessionGraph format
+            const linearPattern = userActions.map(action => ({
+                action_type: action.action_type,
+                element_type: action.element_type,
+                label: action.details?.cell_value || action.details?.new_label || '',
+                timestamp: action.timestamp
+            }));
+
+            // Check if linear diagram already exists for this session
+            const { data: existingDiagram } = await supabase
+                .from('linear_diagrams')
+                .select('id')
+                .eq('session_id', sessionId)
+                .single();
+
+            if (existingDiagram) {
+                // Update existing diagram
+                const { error: updateError } = await supabase
+                    .from('linear_diagrams')
+                    .update({
+                        linear_pattern: linearPattern,
+                        created_at: new Date().toISOString()
+                    })
+                    .eq('session_id', sessionId);
+
+                if (updateError) throw updateError;
+                console.log('Updated existing linear diagram for session:', sessionId);
+            } else {
+                // Create new diagram
+                const { error: insertError } = await supabase
+                    .from('linear_diagrams')
+                    .insert({
+                        session_id: sessionId,
+                        linear_pattern: linearPattern
+                    });
+
+                if (insertError) throw insertError;
+                console.log('Created new linear diagram for session:', sessionId);
+            }
+
+        } catch (error) {
+            console.error('Error creating linear diagram:', error);
+            // Don't throw - this shouldn't fail the assessment
         }
     }
 };
+
 
 // src/services/AssessmentService.test.js
 

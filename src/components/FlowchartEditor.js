@@ -66,7 +66,7 @@ DocumentShape.prototype.paintVertexShape = function (c, x, y, w, h) {
 
 const FlowchartEditor = React.forwardRef(({
     problemId,
-    userId,
+    studentNumber, // New prop
     onSessionChange,
     isLecturerMode = false,
     onXmlChange = null
@@ -79,6 +79,7 @@ const FlowchartEditor = React.forwardRef(({
     const [startTime] = useState(Date.now());
     const [draggedElement, setDraggedElement] = useState(null);
     const sessionInitialized = useRef(false);
+    const sessionInitializing = useRef(false);
 
     // Define getGraphXml early
     const getGraphXml = useCallback(() => {
@@ -136,30 +137,112 @@ const FlowchartEditor = React.forwardRef(({
         graph
     }), [getGraphXml, saveSnapshot, graph]);
 
-    // Initialize session function
+    // Update initializeSession to use student number
     const initializeSession = useCallback(async () => {
-        if (sessionInitialized.current || sessionId) return;
+        if (sessionInitializing.current || sessionId) {
+            console.log('Session initialization already in progress or completed');
+            return;
+        }
+
+        sessionInitializing.current = true;
 
         try {
-            const { data } = await supabase
-                .from('flowchart_sessions')
-                .insert({
-                    user_id: userId,
-                    problem_id: problemId,
-                })
-                .select()
-                .single();
+            console.log('Checking for existing session for student:', studentNumber, 'problem:', problemId);
 
-            if (data) {
-                setSessionId(data.id);
-                sessionInitialized.current = true;
-                if (onSessionChange) onSessionChange(data.id);
+            // Check for existing incomplete session for THIS SPECIFIC STUDENT
+            const { data: existingSession, error: checkError } = await supabase
+                .from('flowchart_sessions')
+                .select('*')
+                .eq('student_number', studentNumber) // Use student number instead of generated ID
+                .eq('problem_id', problemId)
+                .is('completed_at', null)
+                .order('started_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            if (checkError && checkError.code !== 'PGRST116') {
+                throw checkError;
             }
+
+            let currentSessionId;
+
+            if (existingSession) {
+                console.log('Resuming existing session:', existingSession.id);
+                currentSessionId = existingSession.id;
+            } else {
+                console.log('Creating new session for student:', studentNumber, 'problem:', problemId);
+                const { data: newSession, error: createError } = await supabase
+                    .from('flowchart_sessions')
+                    .insert({
+                        user_id: `student_${studentNumber}`, // Keep user_id for compatibility
+                        student_number: studentNumber, // Add student number
+                        problem_id: problemId,
+                    })
+                    .select()
+                    .single();
+
+                if (createError) throw createError;
+                currentSessionId = newSession.id;
+            }
+
+            if (!sessionId) {
+                setSessionId(currentSessionId);
+                sessionInitialized.current = true;
+                if (onSessionChange) onSessionChange(currentSessionId);
+                console.log('Session initialized for student:', studentNumber, 'session:', currentSessionId);
+            }
+
         } catch (error) {
+            console.error('Session initialization error:', error);
             toast.error('Failed to start session');
-            console.error('Session error:', error);
+        } finally {
+            sessionInitializing.current = false;
         }
-    }, [userId, problemId, sessionId, onSessionChange]);
+    }, [problemId, studentNumber, sessionId, onSessionChange]);
+
+    // Update the useEffect to depend on studentNumber
+    useEffect(() => {
+        if (studentNumber && problemId && !sessionInitialized.current && !sessionId) {
+            initializeSession();
+        }
+    }, [studentNumber, problemId, initializeSession]);
+
+    // Add this helper function to generate unique student IDs
+    const generateUniqueStudentId = () => {
+        // Method 1: Browser fingerprinting + timestamp
+        const browserFingerprint = getBrowserFingerprint();
+        const timestamp = Date.now();
+        const random = Math.random().toString(36).substring(2, 8);
+
+        return `student_${browserFingerprint}_${timestamp}_${random}`;
+    };
+
+    const getBrowserFingerprint = () => {
+        // Create a simple browser fingerprint
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        ctx.textBaseline = 'top';
+        ctx.font = '14px Arial';
+        ctx.fillText('Student fingerprint', 2, 2);
+
+        const fingerprint = [
+            navigator.userAgent,
+            navigator.language,
+            window.screen.width + 'x' + window.screen.height,
+            new Date().getTimezoneOffset(),
+            canvas.toDataURL()
+        ].join('|');
+
+        // Simple hash function
+        let hash = 0;
+        for (let i = 0; i < fingerprint.length; i++) {
+            const char = fingerprint.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // Convert to 32-bit integer
+        }
+
+        return Math.abs(hash).toString(36);
+    };
 
     // Track action function
     const trackAction = useCallback(async (actionType, elementId, elementType, position, details = {}) => {
