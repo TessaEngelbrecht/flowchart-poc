@@ -1,6 +1,6 @@
 // src/services/AssessmentService.js
 import { supabase } from '../lib/supabase';
-import { LTLService } from './LTLService';
+import { SolutionSpecificLTLService } from './SolutionSpecificLTLService';
 import { ProcessAssessmentService } from './ProcessAssessmentService';
 
 class FlowchartAssessment {
@@ -684,8 +684,8 @@ export const AssessmentService = {
 
             // Structural assessment (LTL formulas)
             const [universalFormulas, problemFormulas] = await Promise.all([
-                LTLService.getUniversalFormulas(),
-                LTLService.getProblemFormulas(problemId)
+                SolutionSpecificLTLService.getUniversalFormulas(),
+                SolutionSpecificLTLService.getProblemFormulas(problemId)
             ]);
 
             const allFormulas = [...universalFormulas, ...problemFormulas];

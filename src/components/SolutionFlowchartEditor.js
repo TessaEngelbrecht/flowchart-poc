@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import FlowchartEditor from './FlowchartEditor';
+import SolutionValidator from './SolutionValidator';
 import { toast } from 'react-toastify';
-import { LTLService } from '../services/LTLService';
+import { SolutionSpecificLTLService } from '../services/SolutionSpecificLTLService';
 
 const SolutionFlowchartEditor = ({
     problem,
@@ -12,6 +13,10 @@ const SolutionFlowchartEditor = ({
 }) => {
     const [sessionId, setSessionId] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [showValidator, setShowValidator] = useState(false);
+    const [validationResult, setValidationResult] = useState(null);
+    const [saveAttempted, setSaveAttempted] = useState(false);
+    const flowchartRef = useRef(null);
 
     useEffect(() => {
         initializeSolutionSession();
@@ -47,11 +52,39 @@ const SolutionFlowchartEditor = ({
         }
     };
 
+    const handleValidationComplete = (result) => {
+        setValidationResult(result);
+
+        if (result.isValid) {
+            toast.success(`✅ Solution validation passed! Score: ${result.score}%`);
+        } else if (result.error) {
+            toast.error(`❌ Validation error: ${result.error}`);
+        } else {
+            toast.warning(`⚠️ Solution validation failed. Score: ${result.score}%. Please fix issues before saving.`);
+        }
+    };
+
     const saveSolution = async (flowchartXml) => {
         if (!flowchartXml) {
             toast.error('No flowchart data to save');
             return;
         }
+
+        setSaveAttempted(true);
+
+        // If we haven't validated yet, or validation failed, warn the user
+        if (!validationResult || !validationResult.isValid) {
+            const shouldContinue = window.confirm(
+                `⚠️ WARNING: Your solution ${!validationResult ? 'has not been validated' : 'failed validation'}.\n\n` +
+                `Students may not be able to achieve high scores with this solution.\n\n` +
+                `Do you want to save anyway? (Recommended: Click 'Cancel' and validate first)`
+            );
+
+            if (!shouldContinue) {
+                return;
+            }
+        }
+
         setLoading(true);
         try {
             let record;
@@ -79,9 +112,30 @@ const SolutionFlowchartEditor = ({
                 record = data;
                 toast.success('Solution saved!');
             }
-            // Generate & save LTL formulas after saving solution
-            await LTLService.generateAndStoreSolutionFormulas(problem.id, record.id, flowchartXml);
-            toast.success('LTL formulas generated and stored!');
+
+            // Generate smart LTL formulas
+            const formulaResult = await SolutionSpecificLTLService.generateAndStoreSolutionFormulas(
+                problem.id,
+                record.id,
+                flowchartXml
+            );
+
+            if (formulaResult.success) {
+                toast.success(`✅ Generated ${formulaResult.formulaCount} smart LTL formulas!`);
+
+                // Show validation status if available
+                if (formulaResult.solutionValidation) {
+                    const validation = formulaResult.solutionValidation;
+                    if (validation.isValid) {
+                        toast.success(`🎯 Solution validation: ${validation.score}% - Students can achieve high scores!`);
+                    } else {
+                        toast.warning(`⚠️ Solution validation: ${validation.score}% - Consider improving the solution`);
+                    }
+                }
+            } else {
+                toast.warning('Solution saved but formula generation had issues');
+            }
+
             onSolutionSaved();
         } catch (error) {
             console.error('Error in saveSolution:', error);
@@ -91,67 +145,20 @@ const SolutionFlowchartEditor = ({
         }
     };
 
-    if (!sessionId) {
-        return <div className="loading-spinner">Initializing editor...</div>;
-    }
-
-    return (
-        <div className="solution-editor-container">
-            <div className="solution-editor-header">
-                <h2>
-                    {solutionId ? 'Edit Solution' : 'Create New Solution'}
-                </h2>
-                <p>Problem: {problem.title}</p>
-                <div className="editor-actions">
-                    <button
-                        onClick={onCancel}
-                        className="btn btn-secondary"
-                        disabled={loading}
-                    >
-                        Cancel
-                    </button>
-                </div>
-            </div>
-
-            <SolutionFlowchartEditorWrapper
-                sessionId={sessionId}
-                problem={problem}
-                onSave={saveSolution}
-                saving={loading}
-            />
-        </div>
-    );
-};
-
-// Enhanced wrapper with working XML extraction
-const SolutionFlowchartEditorWrapper = ({ sessionId, problem, onSave, saving }) => {
-    const flowchartRef = useRef(null);
-
-    // Enhanced function to extract XML from the flowchart editor
     const extractFlowchartXml = () => {
         try {
-            // Method 1: Use ref if FlowchartEditor exposes getGraphXml
             if (flowchartRef.current && flowchartRef.current.getGraphXml) {
                 const xml = flowchartRef.current.getGraphXml();
                 if (xml) return xml;
             }
 
-            // Method 2: Access graph directly from FlowchartEditor instance
             if (flowchartRef.current && flowchartRef.current.graph) {
                 const graph = flowchartRef.current.graph;
-
-                // Import mxGraph utilities if available globally
                 if (window.mxCodec && window.mxUtils) {
                     const encoder = new window.mxCodec();
                     const node = encoder.encode(graph.getModel());
                     return window.mxUtils.getXml(node);
                 }
-            }
-
-            // Method 3: Check for saved snapshot data
-            const savedSnapshot = localStorage.getItem(`flowchart_${sessionId}`);
-            if (savedSnapshot) {
-                return savedSnapshot;
             }
 
             return null;
@@ -162,7 +169,6 @@ const SolutionFlowchartEditorWrapper = ({ sessionId, problem, onSave, saving }) 
     };
 
     const handleSaveClick = async () => {
-        // First try to save a snapshot using the existing save mechanism
         if (flowchartRef.current && flowchartRef.current.saveSnapshot) {
             try {
                 await flowchartRef.current.saveSnapshot();
@@ -179,31 +185,208 @@ const SolutionFlowchartEditorWrapper = ({ sessionId, problem, onSave, saving }) 
         }
 
         console.log('Extracted XML length:', xml.length);
-        await onSave(xml);
+        await saveSolution(xml);
+    };
+
+    const toggleValidator = () => {
+        setShowValidator(!showValidator);
+    };
+
+    if (!sessionId) {
+        return <div className="loading-spinner">Initializing editor...</div>;
+    }
+
+    const getValidationStatusColor = () => {
+        if (!validationResult) return '#666';
+        if (validationResult.error) return '#F44336';
+        if (validationResult.isValid) return '#4CAF50';
+        return '#FF9800';
+    };
+
+    const getValidationStatusText = () => {
+        if (!validationResult) return 'Not validated';
+        if (validationResult.error) return 'Validation error';
+        if (validationResult.isValid) return `Valid (${validationResult.score}%)`;
+        return `Issues found (${validationResult.score}%)`;
     };
 
     return (
-        <div className="solution-flowchart-wrapper">
-            <FlowchartEditor
-                ref={flowchartRef}
-                problemId={problem.problem_code}
-                userId="lecturer_user"
-                sessionId={sessionId}
-                isLecturerMode={true}
-            />
+        <div className="solution-editor-container">
+            <div className="solution-editor-header">
+                <div className="header-main">
+                    <h2>
+                        {solutionId ? 'Edit Solution' : 'Create New Solution'}
+                    </h2>
+                    <p>Problem: {problem.title}</p>
+                </div>
 
-            <div className="solution-save-controls">
-                <button
-                    onClick={handleSaveClick}
-                    disabled={saving}
-                    className="btn btn-primary btn-large"
-                >
-                    {saving ? 'Saving Solution...' : 'Save Solution to Database'}
-                </button>
-                <p className="save-help-text">
-                    This will save your flowchart structure for LTL formula generation
-                </p>
+                <div className="header-actions">
+                    <div className="validation-status" style={{ color: getValidationStatusColor() }}>
+                        <span>Status: {getValidationStatusText()}</span>
+                    </div>
+
+                    <button
+                        onClick={toggleValidator}
+                        className={`btn ${showValidator ? 'btn-primary' : 'btn-outline'}`}
+                        style={{ marginRight: '8px' }}
+                    >
+                        {showValidator ? '🔍 Hide Validator' : '🔍 Show Validator'}
+                    </button>
+
+                    <button
+                        onClick={onCancel}
+                        className="btn btn-secondary"
+                        disabled={loading}
+                    >
+                        Cancel
+                    </button>
+                </div>
             </div>
+
+            <div className="solution-editor-workspace">
+                <FlowchartEditor
+                    ref={flowchartRef}
+                    problemId={problem.problem_code}
+                    studentNumber="lecturer_user"
+                    onSessionChange={() => { }}
+                    isLecturerMode={true}
+                />
+
+                {showValidator && (
+                    <SolutionValidator
+                        flowchartRef={flowchartRef}
+                        onValidationComplete={handleValidationComplete}
+                        showValidation={true}
+                    />
+                )}
+
+                <div className="solution-save-controls">
+                    <div className="save-controls-main">
+                        <button
+                            onClick={handleSaveClick}
+                            disabled={loading}
+                            className="btn btn-primary btn-large save-solution-btn"
+                        >
+                            {loading ? 'Saving Solution...' : 'Save Solution & Generate Formulas'}
+                        </button>
+                    </div>
+
+                    <div className="save-help-section">
+                        <div className="save-help-text">
+                            <p>💡 <strong>Tip:</strong> Use the validator above to check if your solution meets basic requirements</p>
+                            <p>🎯 <strong>Goal:</strong> Valid solutions help students achieve high scores when they solve correctly</p>
+                        </div>
+
+                        {saveAttempted && validationResult && !validationResult.isValid && (
+                            <div className="validation-warning">
+                                <p style={{ color: '#FF9800' }}>
+                                    ⚠️ <strong>Warning:</strong> This solution has validation issues.
+                                    Students may struggle to achieve high scores.
+                                </p>
+                            </div>
+                        )}
+
+                        {validationResult && validationResult.isValid && (
+                            <div className="validation-success">
+                                <p style={{ color: '#4CAF50' }}>
+                                    ✅ <strong>Great!</strong> This solution passes validation.
+                                    Students can achieve high scores with correct implementations.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            <style jsx>{`
+                .solution-editor-container {
+                    display: flex;
+                    flex-direction: column;
+                    height: 100vh;
+                }
+
+                .solution-editor-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: flex-start;
+                    padding: 20px;
+                    background: #f8f9fa;
+                    border-bottom: 1px solid #dee2e6;
+                }
+
+                .header-main h2 {
+                    margin: 0 0 8px 0;
+                    color: #333;
+                }
+
+                .header-main p {
+                    margin: 0;
+                    color: #666;
+                }
+
+                .header-actions {
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                }
+
+                .validation-status {
+                    font-size: 14px;
+                    font-weight: 500;
+                }
+
+                .solution-editor-workspace {
+                    flex: 1;
+                    display: flex;
+                    flex-direction: column;
+                    overflow: hidden;
+                }
+
+                .solution-save-controls {
+                    background: #f8f9fa;
+                    border-top: 1px solid #dee2e6;
+                    padding: 20px;
+                }
+
+                .save-controls-main {
+                    text-align: center;
+                    margin-bottom: 16px;
+                }
+
+                .save-solution-btn {
+                    padding: 12px 32px;
+                    font-size: 16px;
+                    font-weight: 600;
+                }
+
+                .save-help-section {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                }
+
+                .save-help-text p {
+                    margin: 0;
+                    font-size: 14px;
+                    color: #666;
+                }
+
+                .validation-warning, .validation-success {
+                    padding: 12px;
+                    border-radius: 4px;
+                    font-size: 14px;
+                }
+
+                .validation-warning {
+                    background: #fff3cd;
+                    border: 1px solid #ffeaa7;
+                }
+
+                .validation-success {
+                    background: #d4edda;
+                    border: 1px solid #c3e6cb;
+                }
+            `}</style>
         </div>
     );
 };

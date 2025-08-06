@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { LTLService } from '../services/LTLService';
+import { SolutionSpecificLTLService } from '../services/SolutionSpecificLTLService';
 import { toast } from 'react-toastify';
 
 const LecturerSolutionList = ({
@@ -33,8 +33,8 @@ const LecturerSolutionList = ({
 
             // Fetch universal and problem-specific formulas
             const [universal, problemSpecific] = await Promise.all([
-                LTLService.getUniversalFormulas(),
-                LTLService.getProblemFormulas(problem.id)
+                SolutionSpecificLTLService.getUniversalFormulas(),
+                SolutionSpecificLTLService.getProblemFormulas(problem.id)
             ]);
 
             setUniversalFormulas(universal);
@@ -53,7 +53,7 @@ const LecturerSolutionList = ({
 
     const handleSaveFormula = async (updatedFormula) => {
         try {
-            await LTLService.updateFormula(
+            await SolutionSpecificLTLService.updateFormula(
                 updatedFormula.id,
                 {
                     ltl_expression: updatedFormula.ltl_expression,

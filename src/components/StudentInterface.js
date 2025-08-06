@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { LTLService } from '../services/LTLService';
-import { AssessmentService } from '../services/AssessmentService';
+import { SolutionSpecificLTLService } from '../services/SolutionSpecificLTLService';
+import { SolutionSpecificAssessmentService } from '../services/SolutionSpecificAssessmentService';
 import FlowchartEditor from './FlowchartEditor';
 import { toast } from 'react-toastify';
 
@@ -57,8 +57,8 @@ const StudentInterface = ({ onSessionChange }) => {
             setCurrentProblem(data);
 
             const [universal, problemSpecific] = await Promise.all([
-                LTLService.getUniversalFormulas(),
-                LTLService.getProblemFormulas(data.id)
+                SolutionSpecificLTLService.getUniversalFormulas(),
+                SolutionSpecificLTLService.getProblemFormulas(data.id)
             ]);
 
             setUniversalFormulas(universal);
@@ -111,7 +111,7 @@ const StudentInterface = ({ onSessionChange }) => {
             console.log('Starting assessment with LOCKED session:', currentSession);
             toast.info('Evaluating your flowchart...');
 
-            const result = await AssessmentService.assessStudentFlowchart(
+            const result = await SolutionSpecificAssessmentService.assessStudentFlowchart(
                 currentProblem.id,
                 currentSession,
                 flowchartXml,

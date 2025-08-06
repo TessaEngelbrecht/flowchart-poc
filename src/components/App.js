@@ -4,7 +4,6 @@ import LecturerProblemForm from './LecturerProblemForm';
 import LecturerSolutionList from './LecturerSolutionList';
 import SolutionFlowchartEditor from './SolutionFlowchartEditor';
 import StudentInterface from './StudentInterface';
-import SessionGraph from './SessionGraph';
 import '../App.css';
 
 function App() {
@@ -115,13 +114,6 @@ function App() {
           <StudentInterface onSessionChange={handleSessionChange} />
         )}
       </main>
-
-      {/* Session Graph - only show for students */}
-      {currentView === 'student-interface' && (
-        <div className="session-graph-container">
-          <SessionGraph />
-        </div>
-      )}
     </div>
   );
 }

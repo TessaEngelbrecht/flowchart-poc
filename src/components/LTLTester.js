@@ -1,8 +1,8 @@
 // src/components/LTLTester.js
 
 import React, { useState } from 'react';
-import { LTLTestCases, runLTLTests } from '../services/AssessmentService.test';
-import { AssessmentService } from '../services/AssessmentService';
+import { LTLTestCases, runLTLTests } from '../services/SolutionSpecificLTLService.test';
+import { SolutionSpecificLTLService } from '../services/SolutionSpecificLTLService';
 
 const LTLTester = ({ problem }) => {
     const [testResults, setTestResults] = useState(null);
@@ -26,7 +26,7 @@ const LTLTester = ({ problem }) => {
 
         setTesting(true);
         try {
-            const result = await AssessmentService.assessStudentFlowchart(
+            const result = await SolutionSpecificLTLService.assessStudentFlowchart(
                 problem.id,
                 'test-session',
                 customXml
